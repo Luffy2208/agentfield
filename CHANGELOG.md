@@ -6,6 +6,328 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.44-rc.1] - 2026-03-02
+
+
+### Added
+
+- Feat: waiting state with approval workflows, VC-based authorization, and multi-version reasoners (#197)
+
+* feat(control-plane): add VC-based authorization foundation
+
+This commit introduces the foundation for the new VC-based authorization
+system that replaces API key distribution with admin-approved permissions.
+
+Key components added:
+- Architecture documentation (docs/VC_AUTHORIZATION_ARCHITECTURE.md)
+- Database migrations for permission approvals, DID documents, and protected agents
+- Core types for permissions and did:web support
+- DIDWebService for did:web generation, storage, and resolution
+- PermissionService for permission requests, approvals, and VC issuance
+
+The system enables:
+- Agents self-assigning tags (identity declaration)
+- Admin approval workflow for protected agent access
+- Real-time revocation via did:web
+- Control plane as source of truth for approvals
+
+Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+* feat(vc-authorization): complete VC-based authorization system implementation
+
+- Add DID authentication middleware with Ed25519 signature verification
+- Add permission checking middleware for protected agent enforcement
+- Implement admin API handlers for permission management (approve/reject/revoke)
+- Add permission request and check API endpoints
+- Implement storage layer for DID documents, permission approvals, protected agent rules
+- Add comprehensive integration test suite (14 test functions covering all phases)
+- Add Admin UI pages: PendingPermissions, PermissionHistory, ProtectedAgents
+- Add Go SDK DID authentication support
+- Add Python SDK DID authentication support
+- Fix CI to enable FTS5 tests (previously all SQLite-dependent tests were skipped)
+- Add security documentation for DID authentication
+- Add implementation guide documentation
+
+Co-Authored-By: Claude <noreply@anthropic.com>
+
+* fix(control-plane): fix pre-existing test bugs exposed by FTS5 build tag
+
+TestGetNodeDetailsHandler_Structure expected HTTP 400 for missing route
+param but Gin returns 404. TestGetNodeStatusHandler_Structure was missing
+a mock expectation for GetAgentStatus causing a panic.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix(control-plane): fix pre-existing test bugs exposed by FTS5 build tag
+
+The CI workflow change from `go test ./...` to `go test -tags sqlite_fts5 ./...`
+caused previously-skipped tests to execute, revealing 15 pre-existing bugs:
+
+- UI handler tests: Register agents in storage and configure mocks for
+  GetAgentStatus calls; fix assertions to match actual behavior (health
+  check failures mark agents inactive, not error the request)
+- VC service tests: Fix GetWorkflowVC lookups to use workflow_vc_id not
+  workflow_id; fix issuer mismatch test to tamper VCDocument JSON instead
+  of metadata field; fix error message assertion for empty VC documents
+- VC storage tests: Fix GetWorkflowVC key lookups; fix empty result assertions
+- PresenceManager tests: Register agents in storage so markInactive ->
+  UpdateAgentStatus -> GetAgentStatusSnapshot -> GetAgent succeeds; add
+  proper sync.Mutex for callback vars; use require.Eventually instead of
+  time.Sleep; set HardEvictTTL for lease deletion test
+- Webhook storage: Fix hardcoded Pending status to use webhook.Status
+- Execution records test: Fix LatestStarted assertion (CreateExecutionRecord
+  overwrites updated_at with time.Now())
+- Cleanup test: Wire countWorkflowRuns and deleteWorkflowRuns into
+  workflow cleanup path
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix(control-plane): fix SSE tests leaking goroutines via incorrect context cancellation
+
+Multiple SSE tests called req.Context().Done() expecting it to cancel the
+context, but Done() only returns a channel — it doesn't cancel anything.
+This caused SSE handler goroutines to block forever, leaking and eventually
+causing a 10-minute test timeout in CI.
+
+Fixed all affected tests to use context.WithCancel + explicit cancel() call,
+matching the pattern already used by the working SSE tests.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* ts sdk and bug fix on did web
+
+* feat(examples): add permission test agents and enable VC authorization config
+
+Add two example agents for manually testing the VC authorization system
+end-to-end: permission-agent-a (caller) and permission-agent-b (protected
+target). Enable authorization in the default config with seeded protection
+rules.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* Fixes
+
+* fix(sdk-python): update test fakes for DID credential wiring in _register_agent_with_did
+
+The previous commit added identity_package access and client credential
+wiring to _register_agent_with_did but didn't update the test fakes.
+_FakeDIDManager now provides a realistic identity_package and
+_FakeAgentFieldClient supports set_did_credentials, so the full
+registration path is exercised in tests.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* more improvements
+
+* 6th iteration of fixes
+
+* end to end tested
+
+* feat(sdk): add Go & TS permission test agents, fix DID auth signing
+
+- Add Go permission test agents (caller + protected target with 3 reasoners)
+- Add TS permission test agents (caller + tag-protected target with VC generation)
+- Fix TS SDK DID auth: pass pre-serialized JSON string to axios to ensure
+  signed bytes match what's sent on the wire
+- Fix Python SDK test for async execution manager payload serialization change
+- Add go-perm-target protection rule to config
+- Gitignore compiled Go agent binaries
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix(sdk-ts): update header-forwarding test for pre-serialized JSON body
+
+The execute() method now passes a JSON string instead of an object to
+axios for DID auth signing consistency. Update test assertion to match.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* manual testing updates
+
+* fix(vc-auth): fix re-approval deadlock, empty caller_agent_id, and error propagation
+
+- Fix re-approval deadlock: expand auto-request condition to trigger for
+  revoked/rejected statuses, not just empty (permission.go)
+- Fix empty caller_agent_id: add DID registry fallback in
+  ResolveAgentIDByDID for did:key resolution (did_service.go, did_web_service.go)
+- Fix HTTP 200 for failed executions: return 502 with proper error details
+  when inner agent-to-agent calls fail (execute.go)
+- Fix error propagation across all 3 SDKs:
+  - Go SDK: add ExecuteError type preserving status code and error_details
+  - TS SDK: propagate err.responseData as error_details in all error handlers
+  - Python SDK: add ExecuteError class, extract JSON body from 4xx responses
+    instead of losing it via raise_for_status(), propagate error_details in
+    async callback payloads
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix go missing func
+
+* address dx changes
+
+* temp
+
+* more fixes
+
+* finalized
+
+* better error prop
+
+* fix: update TS DID auth tests to match nonce-based signing format
+
+Tests expected the old 3-header format ({timestamp}:{bodyHash}) but the
+implementation correctly uses 4 headers with nonce ({timestamp}:{nonce}:{bodyHash}),
+matching Go and Python SDKs.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: add rate limiting to DID auth middleware on execution endpoints
+
+Addresses code scanning alert about missing rate limiting on the
+authorization route handler. Adds a sliding-window rate limiter
+(30 requests per IP per 60s) to the local verification middleware.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: use express-rate-limit for DID auth middleware to satisfy CodeQL
+
+Replace custom Map-based rate limiter with express-rate-limit package,
+which CodeQL recognizes as a proper rate limiting implementation.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: remove duplicate countWorkflowRuns method from rebase
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* UI cleanup
+
+* pydantic formatting fix
+
+* connector changes
+
+* implemented multi agents with versioning
+
+* feat(ui): polished authorization page with unified tabs and visual standardization
+
+Replace separate TagApprovalPage and AccessPoliciesPage with a single
+tabbed AuthorizationPage. Add polished authorization components:
+- AccessRulesTab: 48px rows, sorted policies, ALLOW/DENY border colors
+- AgentTagsTab: all agents with tag data, sorted, neutral badges
+- ApproveWithContextDialog: tag selection with policy impact preview
+- PolicyFormDialog: chip-input for tags with known-tag suggestions
+- PolicyContextPanel: shows affected policies for selected tags
+- RevokeDialog: neutral styling, optional reason
+- ChipInput, TooltipTagList: reusable tag UI components
+
+Backend additions:
+- GET /api/ui/v1/authorization/agents: returns all agents with tag data
+- GET /api/v1/admin/tags: returns all known tags from agents & policies
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* multi versioning connector setup
+
+* add agent to agent direct checks
+
+* bugfixes on connector
+
+* QA fixes
+
+* package lock
+
+* bug fixes on permissions & versioning flow
+
+* fix: add missing DeleteAgentVersion stub and guard postgres migration for fresh DBs
+
+Two CI failures:
+
+1. linux-tests: stubStorage in server_routes_test.go was missing the
+   DeleteAgentVersion method added to the StorageProvider interface
+   by the multi-version work. Add the stub.
+
+2. Functional Tests (postgres): migrateAgentNodesCompositePKPostgres
+   tried to ALTER TABLE agent_nodes before GORM created it on fresh
+   databases. The information_schema.columns query returns count=0
+   (not an error) when the table doesn't exist, so the function
+   proceeded to run ALTER statements against a nonexistent table.
+   Add an explicit table existence check matching the pattern already
+   used by the SQLite migration path.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* add postgres testing to dev
+
+* wait flow
+
+* improvements
+
+* bugfix on reasoner path
+
+* reasoner name mismatch fix
+
+* fix skill name mismatch bug
+
+* fix: update test to include approval_expires_at column
+
+The merge brought in a test from main that expected 42 columns in the
+workflow execution insert query, but the feature branch added
+approval_expires_at as the 43rd column. Update the test's column list
+and expected placeholder count to match.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: remove unused httpx import in test_approval.py
+
+Ruff lint flagged the unused import (F401). The tests use httpx_mock
+fixture from pytest-httpx, not httpx directly.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: resolve Python and TypeScript SDK test failures
+
+Python SDK:
+- Add pytest-httpx dependency (with Python >=3.10 constraint)
+- Register httpx_mock marker for --strict-markers compatibility
+- Add importorskip for graceful skip on Python <3.10
+- Fix request_approval test calls to match actual API signature
+
+TypeScript SDK:
+- Call server.closeAllConnections() before server.close() in
+  afterEach to prevent keep-alive connection timeout in tests
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: update test URL to match reasoner name-based endpoint path
+
+After the reasoner name fix, @agent.reasoner(name="reports_generate")
+registers at /reasoners/reports_generate (the explicit name), not
+/reasoners/generate_report (the function name).
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* add examples for waiting state
+
+* fix: resolve Gin route parameter conflict between waiting-state and tag-vc endpoints
+
+The waiting-state feature added routes under /api/v1/agents/:node_id/...
+which conflicted with the existing tag-vc endpoint using :agentId as
+the parameter name. Gin requires consistent wildcard names for the same
+path segment, causing a panic on server startup.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix tests
+
+* fix: correct async endpoint URLs and assertion in waiting state functional tests
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.5 <noreply@anthropic.com>
+Co-authored-by: Santosh <santosh@agentfield.ai> (414f91c)
+
 ## [0.1.43] - 2026-03-02
 
 ## [0.1.43-rc.1] - 2026-03-02
