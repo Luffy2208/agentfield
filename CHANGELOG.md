@@ -6,6 +6,123 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.45-rc.2] - 2026-03-03
+
+
+### Added
+
+- Feat(harness): add .harness() method for external coding agent dispatch (#210)
+
+* docs: add harness v2 design document with file-write schema strategy
+
+Design document for .harness() feature — first-class coding agent integration.
+Covers architecture, provider matrix, universal file-write schema handling with
+4-layer recovery, config types, and implementation phases.
+
+Ref: #208
+
+* feat(harness): add core types, provider interface, and factory skeleton (#199)
+
+- Add HarnessConfig to types.py (provider required, sensible defaults)
+- Add HarnessResult, RawResult, Metrics result types
+- Add HarnessProvider protocol (Python) / interface (TypeScript)
+- Add build_provider() factory with supported provider validation
+- Python: 8 tests passing, TypeScript: 6 tests passing
+
+Closes #199
+
+* feat(harness): add schema handling with universal file-write strategy (#200)
+
+- Universal file-write: always instruct agent to write JSON to {cwd}/.agentfield_output.json
+- Prompt suffix generation (inline for small schemas, file-based for large >4K tokens)
+- Cosmetic JSON repair: strip markdown fences, trailing commas, truncated brackets
+- Full parse+validate pipeline with Layer 1 (direct) + Layer 2 (repair) fallback
+- Pydantic v1/v2 + Zod schema support
+- Python: 19 tests, TypeScript: 18 tests
+
+Closes #200
+
+* feat(harness): add HarnessRunner with retry and schema orchestration (#201)
+
+- Config resolution: merge HarnessConfig defaults + per-call overrides
+- Exponential backoff + jitter retry for transient errors (rate limits, 5xx, timeouts)
+- Schema orchestration: prompt suffix injection, Layer 1+2 parse/validate
+- Guaranteed temp file cleanup in finally block
+- Cost/metrics/session tracking in HarnessResult
+
+Closes #201
+
+* feat(harness): add Claude Code and Codex providers with shared CLI utilities (#202, #203)
+
+- Claude Code provider: Python uses claude_agent_sdk (lazy import), TS uses @anthropic-ai/claude-agent-sdk (dynamic import)
+- Codex provider: Python + TS use CLI subprocess with shared async utilities
+- Shared CLI module: run_cli, parse_jsonl, extract_final_text for subprocess management
+- All providers implement HarnessProvider protocol with execute() method
+- 14 Python tests + 12 TypeScript tests, all passing (97 total)
+
+* feat(harness): wire .harness() into Agent class with lazy runner (#204)
+
+- Python: harness_config constructor param, lazy harness_runner property, async harness() method
+- TypeScript: harnessConfig in AgentConfig, lazy getHarnessRunner(), async harness() method
+- Package exports: HarnessConfig + HarnessResult from agentfield.__init__
+- 8 Python + 6 TypeScript wiring tests, all passing (111 total)
+
+* feat(harness): add Gemini CLI and OpenCode providers (#205, #206)
+
+- Gemini provider: CLI subprocess with -p prompt, --sandbox auto, -m model flags
+- OpenCode provider: CLI subprocess with --non-interactive, --model flags
+- Factory updated to route all 4 providers: claude-code, codex, gemini, opencode
+- Provider exports updated in Python + TypeScript
+- 10 Python + 10 TypeScript new tests, all passing (131 total)
+
+* fix(harness): address review feedback — lazy imports, trimmed exports, file permissions
+
+- Remove eager provider imports from Python providers/__init__.py (lazy loading preserved via factory)
+- Trim public API exports in Python harness/__init__.py and TypeScript harness/index.ts to only public types
+- Add 0o600 file permissions for schema/output files in _schema.py and schema.ts
+- Fix TypeScript type errors in runner.ts (tsc --noEmit clean)
+
+* feat(harness): add functional tests, fix provider bugs for Claude and OpenCode
+
+- Add 12 Python + 6 TypeScript functional tests invoking real coding agents
+- Fix Claude Code permission_mode mapping (auto → bypassPermissions)
+- Fix OpenCode CLI command (--non-interactive → run subcommand)
+- Mark OpenCode tests as xfail (upstream v1.2.10 headless bug)
+- Add harness_live pytest marker, excluded from default runs
+- Update unit test expectations for provider command changes
+
+Tested: Codex 4/4 ✅, Claude Code 4/4 ✅, cross-provider ✅
+OpenCode: upstream 'Session not found' bug (not our code)
+
+* perf(harness): fix import/allocation regression — lazy imports, WeakMap, async factory
+
+- TS: Replace eager HarnessRunner import with dynamic import() in Agent.ts
+- TS: Use WeakMap instead of class property for _harnessRunner (keeps V8 inline)
+- TS: Make buildProvider async with per-provider dynamic imports in factory.ts
+- Python: Move HarnessRunner import to TYPE_CHECKING + lazy import in property
+- Update all 8 test files for async buildProvider/getHarnessRunner changes
+- All 131 unit tests passing (69 Python + 62 TypeScript)
+- tsc --noEmit clean
+
+* fix(harness): use typing.List for Python 3.8 compat in functional test
+
+Pydantic evaluates annotations at runtime via eval(), so list[str]
+(PEP 585) fails on Python 3.8 even with 'from __future__ import
+annotations'. Use typing.List[str] instead.
+
+* feat(harness): add optional 'harness' and 'harness-claude' extras in pyproject.toml
+
+Users can now install the Claude Code SDK dependency declaratively:
+  pip install agentfield[harness]        # all harness provider deps
+  pip install agentfield[harness-claude]  # just Claude Code SDK
+
+Codex, Gemini, and OpenCode are CLI binaries — no pip packages needed.
+
+---------
+
+Co-authored-by: Abir Abbas <abirabbas1998@gmail.com>
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (ef1fac5)
+
 ## [0.1.45-rc.1] - 2026-03-02
 
 
