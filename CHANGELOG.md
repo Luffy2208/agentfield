@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.45-rc.3] - 2026-03-04
+
+
+### Added
+
+- Feat(webhook): support all HITL template response formats (#213)
+
+* feat(webhook): support all HITL template response formats and multi-pause workflows
+
+The webhook approval handler previously only extracted the "decision" field
+from template responses, causing templates that use "action" (confirm-action,
+rich-text-editor) or have no explicit decision field (signature-capture) to
+fail silently.
+
+Changes:
+- Extract decision from "action" field as fallback when "decision" is absent
+- Default completed webhooks with no decision/action to "approved"
+- Add normalizeDecision() to map template-specific values (approve, confirm,
+  reject, deny, abort, cancel) to canonical set (approved/rejected)
+- Clear approval request fields on "approved" (not just "request_changes")
+  to support multi-pause workflows where agents issue sequential approvals
+- Add localhost:8001 to CORS allowed origins for demo UIs
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: preserve ApprovalRequestID on approved for idempotency and multi-pause
+
+The previous commit cleared ApprovalRequestID on both "approved" and
+"request_changes" decisions. This broke:
+- Idempotent webhook retries (lookup by request ID returned 404)
+- Approval-status queries (same lookup failure)
+- Callback notifications (in-memory store shared pointer was mutated)
+
+Fix:
+- Only clear ApprovalRequestID on "request_changes" (as before)
+- On "approved", clear URL fields but preserve the request ID
+- Save callback URL before the update closure to avoid shared-pointer
+  aliasing in stores that mutate objects in-place
+- Make request-approval handler multi-pause aware: check ApprovalStatus
+  is "pending" (not just ApprovalRequestID existence) so agents can
+  re-request approval after a resolved round
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (aa15d64)
+
 ## [0.1.45-rc.2] - 2026-03-03
 
 
