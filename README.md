@@ -41,8 +41,6 @@ AgentField is an open-source **control plane** that treats AI agents as first-cl
 
 Write [Python](https://agentfield.ai/api/python-sdk/overview), [Go](https://agentfield.ai/api/go-sdk/overview), [TypeScript](https://agentfield.ai/api/typescript-sdk/overview), or call via [REST](https://agentfield.ai/api/rest-api/overview). Get production infrastructure automatically.
 
----
-
 ## Built With AgentField
 
 <table>
@@ -85,8 +83,6 @@ Write [Python](https://agentfield.ai/api/python-sdk/overview), [Go](https://agen
 
 [See all examples →](https://agentfield.ai/examples)
 
----
-
 ## The AI Backend
 
 Software keeps adding layers when complexity demands it. Frontend/backend separation. Data lakes and pipelines. Now: a **reasoning layer** that sits alongside your services, making decisions that used to be hardcoded.
@@ -97,8 +93,6 @@ We call this the AI Backend. Not a chatbot, not a copilot—infrastructure for s
 
 📖 **[Read: The AI Backend](https://agentfield.ai/blog/posts/ai-backend/?utm_source=github-readme)** — Our thesis on why every serious backend will need a reasoning layer.
 
----
-
 ## See It In Action
 
 <div align="center">
@@ -106,8 +100,6 @@ We call this the AI Backend. Not a chatbot, not a copilot—infrastructure for s
 <br/>
 <i>Real-time Observability • Execution Flow • Audit Trails</i>
 </div>
-
----
 
 ## Build Agents in Any Language
 
@@ -199,8 +191,6 @@ const result = await fetch("http://localhost:8080/api/v1/execute/researcher.summ
 [REST API Reference →](https://agentfield.ai/api/rest-api/overview)
 </details>
 
----
-
 ## Quick Start
 
 ### 1. Install
@@ -290,8 +280,6 @@ export AGENT_PUBLIC_URL="http://host.docker.internal:8001"
 
 **Next Steps:** [Build Your First Agent](https://agentfield.ai/guides/getting-started/build-your-first-agent) | [Deploy to Production](https://agentfield.ai/guides/deployment/overview) | [Examples](https://agentfield.ai/examples)
 
----
-
 ## The Production Gap
 
 Most frameworks stop at "make the LLM call." But production agents need:
@@ -335,8 +323,6 @@ curl -X POST http://localhost:8080/api/v1/execute/researcher.summarize \
 ### Enterprise Ready
 Cryptographic identity for every agent. Tamper-proof audit trails for every action. [Learn more about Identity & Trust](https://agentfield.ai/docs/core-concepts/identity-and-trust).
 
----
-
 ## A New Backend Paradigm
 
 AgentField isn't a framework you extend. It's infrastructure you deploy on.
@@ -375,8 +361,6 @@ AgentField isn't a framework you extend. It's infrastructure you deploy on.
 **Not a DAG builder.** Agents decide what to do next—dynamically. The control plane tracks the execution graph automatically.
 
 **Not tool attachment.** You don't just give an LLM a bag of MCP tools and hope. You define **Reasoners** (AI logic) and **Skills** (deterministic code) with explicit boundaries. [Learn more](https://agentfield.ai/docs/core-concepts/reasoners-and-skills).
-
----
 
 ## Key Features
 
@@ -446,11 +430,7 @@ For compliance teams: mathematical proof, not trust.
 
 *When you're ready to ship agents to production, we'll be here.*
 
----
-
 If you are **Backend Engineers** shipping AI into production who want standard APIs, not magic or **Platform Teams** who don't want to build another homegrown orchestrator or **Enterprise Teams** in regulated industries (Finance, Health) needing audit trails or **Frontend Developers** who just want to `fetch()` an agent without Python headaches, AgentField is built for you.
-
----
 
 ## Learn More
 
@@ -458,8 +438,6 @@ If you are **Backend Engineers** shipping AI into production who want standard A
 - 📖 **[IAM for AI Backends](https://agentfield.ai/blog/posts/iam-ai-backends)** — Why agents need identity, not just API keys
 - 📚 **[Documentation](https://agentfield.ai/docs)** — Full technical reference
 - 🚀 **[Examples](https://agentfield.ai/examples)** — Production patterns and use cases
-
----
 
 ## Community
 
