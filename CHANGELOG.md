@@ -6,6 +6,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.45-rc.8] - 2026-03-05
+
+
+### Fixed
+
+- Fix(did): add did:web resolution to document endpoint (#227)
+
+* fix(did): add did:web resolution to /api/v1/did/document/:did endpoint
+
+The GetDIDDocument handler only resolved did:key identities via the
+in-memory registry. did:web lookups returned "DID not found" even when
+the agent had a valid did:web document stored in the database.
+
+Add did:web resolution (via didWebService) before falling back to
+did:key, matching the pattern already used by the ResolveDID handler
+and the server's serveDIDDocument method.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix(did): normalize URL-decoded %3A in did:web path params
+
+Gin URL-decodes path parameters, turning did:web:localhost%3A8080:agents:foo
+into did:web:localhost:8080:agents:foo. The database stores the canonical
+form with %3A, so lookups failed with "DID not found".
+
+Add normalizeDIDWeb() helper that detects decoded port separators and
+re-encodes them. Applied to both ResolveDID and GetDIDDocument handlers.
+
+Manually verified against running control plane:
+- /api/v1/did/document/did:web:... → 200 with W3C DID Document
+- /api/v1/did/resolve/did:web:... → 200 with DID resolution result
+- did:key paths unchanged (no regression)
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (cdf4e8b)
+
 ## [0.1.45-rc.7] - 2026-03-05
 
 
