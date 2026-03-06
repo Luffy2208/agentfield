@@ -3647,9 +3647,8 @@ class Agent(FastAPI):
                 # Get current execution context
                 current_context = self._get_current_execution_context()
 
-                # Prepare headers with execution context + auth
+                # Prepare headers with execution context
                 headers = current_context.to_headers()
-                headers.update(self.client._get_auth_headers())
                 headers["Content-Type"] = "application/json"
 
                 # Prepare payload
