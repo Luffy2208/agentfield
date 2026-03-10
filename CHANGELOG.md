@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.49] - 2026-03-10
+
+
+### Fixed
+
+- Fix(install): BSD sed compatibility and env var pipe scoping in install.sh (#251)
+
+Replace GNU-only \s with POSIX [[:space:]]* in get_latest_prerelease_version()
+sed regex — \s is not recognized by macOS BSD sed, causing the version
+string to contain raw JSON instead of just the tag name.
+
+Fix documented VERSION/STAGING env var patterns: VAR=val cmd1 | cmd2
+scopes VAR to cmd1 only (POSIX shell behavior), so bash never sees it.
+Corrected to: curl ... | VERSION=X bash
+
+Fixes #250 (96c3ae9)
+
 ## [0.1.49-rc.1] - 2026-03-09
 
 
