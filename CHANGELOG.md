@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.50-rc.1] - 2026-03-10
+
+
+### Added
+
+- Feat: database-backed configuration storage (#254)
+
+* feat: database-backed configuration storage
+
+Add ability to store and manage configuration files in the database
+instead of (or in addition to) YAML files on disk. This enables
+remote config management via the connector/SaaS flow.
+
+- Add ConfigStorageModel with versioning and audit fields
+- Implement SetConfig/GetConfig/ListConfigs/DeleteConfig in storage layer
+- Add config CRUD API endpoints (GET/PUT/DELETE /api/v1/configs/:key)
+- Add connector-scoped config routes gated by config_management capability
+- Add AGENTFIELD_CONFIG_SOURCE=db flag to load config from database at startup
+- Add Goose migration 028_create_config_storage.sql
+- Works on both SQLite and PostgreSQL backends
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* feat: add hot-reload endpoint for database-backed configuration
+
+Adds POST /configs/reload endpoint that re-applies database config
+to the running control plane without requiring a process restart.
+Only active when AGENTFIELD_CONFIG_SOURCE=db is set.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: merge DB config fields individually to prevent zeroing out defaults
+
+The ExecutionCleanup struct was being replaced wholesale when only
+RetentionPeriod was set, zeroing out CleanupInterval and causing a
+panic (non-positive interval for NewTicker). Now merges each field
+individually. Also excludes connector config from DB merge since
+token and capabilities are security-sensitive.
+
+Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+* fix: address critical security and correctness issues in config storage
+
+- Add 1MB body size limit to SetConfig to prevent DoS via unbounded reads
+- Add sync.RWMutex to protect config during hot-reload (prevents data race)
+- Replace fragile string error check with errors.Is(err, sql.ErrNoRows)
+
+---------
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com>
+Co-authored-by: Santosh <santosh@agentfield.ai> (7ac9c87)
+
 ## [0.1.49] - 2026-03-10
 
 
