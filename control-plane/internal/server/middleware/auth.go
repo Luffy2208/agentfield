@@ -53,6 +53,14 @@ func APIKeyAuth(config AuthConfig) gin.HandlerFunc {
 			return
 		}
 
+		// Connector routes use their own ConnectorTokenAuth middleware — skip global API key check.
+		// Security: ConnectorTokenAuth enforces X-Connector-Token with constant-time comparison,
+		// plus per-route ConnectorCapabilityCheck for fine-grained access control.
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/connector/") {
+			c.Next()
+			return
+		}
+
 		apiKey := ""
 
 		// Preferred: X-API-Key header
