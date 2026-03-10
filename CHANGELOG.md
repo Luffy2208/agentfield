@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.50-rc.2] - 2026-03-10
+
+
+### Fixed
+
+- Fix: skip global API key check for connector routes (#255)
+
+Connector routes have their own dedicated ConnectorTokenAuth middleware
+that enforces X-Connector-Token with constant-time comparison. The global
+APIKeyAuth middleware was incorrectly requiring the API key on these routes
+too, forcing connectors to know and send the CP's global API key — a
+credential they should never need.
+
+This adds a prefix skip for /api/v1/connector/ in APIKeyAuth, matching
+the existing pattern for /health, /ui, and /api/v1/did/ routes.
+
+Also adds comprehensive functional tests for the full connector auth chain:
+- ConnectorTokenAuth (valid/invalid/missing token, audit metadata injection)
+- ConnectorCapabilityCheck (enabled/disabled/read-only/missing capabilities)
+- Integration tests proving connector routes reject requests without a valid
+  connector token, even though they bypass the global API key check
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (6d969a1)
+
 ## [0.1.50-rc.1] - 2026-03-10
 
 
