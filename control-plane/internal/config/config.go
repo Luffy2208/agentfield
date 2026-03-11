@@ -337,6 +337,7 @@ func applyEnvOverrides(cfg *Config) {
 		"AGENTFIELD_CONNECTOR_CAP_REASONER_MANAGEMENT": "reasoner_management",
 		"AGENTFIELD_CONNECTOR_CAP_STATUS_READ":          "status_read",
 		"AGENTFIELD_CONNECTOR_CAP_OBSERVABILITY_CONFIG": "observability_config",
+		"AGENTFIELD_CONNECTOR_CAP_CONFIG_MANAGEMENT":    "config_management",
 	}
 	for envKey, capName := range connectorCapEnvMap {
 		if val := os.Getenv(envKey); val != "" {
