@@ -132,4 +132,4 @@ __all__ = [
     "ValidationError",
 ]
 
-__version__ = "0.1.52-rc.1"
+__version__ = "0.1.52-rc.2"

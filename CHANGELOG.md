@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.52-rc.2] - 2026-03-12
+
+
+### Added
+
+- Feat: add token-based cost estimation for CLI harness providers (#260)
+
+OpenCode, Gemini, and Codex providers now estimate LLM cost using
+litellm's pricing database, so HarnessResult.cost_usd is no longer
+always None for subprocess-based providers. This enables budget
+enforcement and cost reporting in downstream consumers like pr-af.
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (8b94345)
+
 ## [0.1.52-rc.1] - 2026-03-11
 
 
