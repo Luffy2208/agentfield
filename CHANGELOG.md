@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.56-rc.1] - 2026-03-13
+
+
+### Fixed
+
+- Fix: prevent async executions from getting stuck in running state (#267)
+
+Two issues caused async executions to remain in "running" state forever
+when the reasoner failed:
+
+1. SDK: asyncio.create_task() return values were not stored, making
+   fire-and-forget tasks eligible for GC before the status callback
+   could be delivered. Now stored in a set with auto-cleanup via
+   done_callback. Also increased callback timeout from 10s to 30s
+   since the shared httpx client's default is too aggressive for
+   concurrent status updates over internal networking.
+
+2. CP: stale execution reaper ran every 1h with a 30m timeout (worst
+   case ~90min to clean up). Reduced to 5m interval with 10m timeout
+   so stuck executions are marked as timed-out within 15 minutes.
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (950b01c)
+
 ## [0.1.55] - 2026-03-13
 
 ## [0.1.55-rc.1] - 2026-03-13
