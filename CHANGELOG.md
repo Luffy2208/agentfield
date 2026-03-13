@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.55-rc.1] - 2026-03-13
+
+
+### Fixed
+
+- Fix(sdk): tune rate limiter defaults for fail-fast behavior (#265)
+
+Reduce exponential backoff aggressiveness to prevent 2+ hour workflow
+runtimes when using rate-limited providers like OpenRouter. The previous
+defaults (20 retries, 300s max delay, 300s circuit breaker) caused
+cascading backoff that compounded across parallel agents.
+
+New defaults: 5 retries, 0.5s base delay, 30s max delay, circuit breaker
+threshold 5 with 30s timeout. Max theoretical wait per call drops from
+~100 minutes to ~2.5 minutes.
+
+Changes:
+- Python StatelessRateLimiter: max_retries 20→5, base_delay 1.0→0.5,
+  max_delay 300→30, circuit_breaker_threshold 10→5, timeout 300→30
+- TypeScript StatelessRateLimiter: identical parameter changes
+- AIConfig: updated Field defaults to match rate limiter
+- Added functional tests validating new defaults and max wait bounds
+
+Co-authored-by: Claude Opus 4.6 <noreply@anthropic.com> (486ff3d)
+
 ## [0.1.54] - 2026-03-13
 
 ## [0.1.54-rc.2] - 2026-03-13
