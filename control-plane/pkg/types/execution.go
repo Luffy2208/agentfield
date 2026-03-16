@@ -63,6 +63,10 @@ type ExecutionFilter struct {
 	EndTime           *time.Time
 	SortBy            string
 	SortDescending    bool
+	// ExcludePayloads omits input_payload and result_payload from the query result.
+	// Set this for list/dashboard queries that do not need payload data to avoid
+	// transferring large TOAST columns over the wire.
+	ExcludePayloads bool
 }
 
 // ExecutionDAGEdge captures a parent→child relationship inside a run. The UI uses

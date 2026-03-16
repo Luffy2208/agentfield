@@ -270,10 +270,16 @@ func (ls *LocalStorage) QueryExecutionRecords(ctx context.Context, filter types.
 	}
 
 	queryBuilder := strings.Builder{}
+	// Omit large TOAST columns when the caller signals payloads are not needed.
+	// NULL placeholders keep the column count identical so scanExecution still works.
+	payloadCols := "input_payload, result_payload"
+	if filter.ExcludePayloads {
+		payloadCols = "NULL AS input_payload, NULL AS result_payload"
+	}
 	queryBuilder.WriteString(`
 		SELECT execution_id, run_id, parent_execution_id,
 		       agent_node_id, reasoner_id, node_id,
-		       status, status_reason, input_payload, result_payload, error_message,
+		       status, status_reason, ` + payloadCols + `, error_message,
 		       input_uri, result_uri,
 		       session_id, actor_id,
 		       started_at, completed_at, duration_ms,

@@ -554,11 +554,12 @@ func (h *DashboardHandler) GetEnhancedDashboardSummaryHandler(c *gin.Context) {
 
 	// Query executions for the specified time range
 	filters := types.ExecutionFilter{
-		StartTime:      &startTime,
-		EndTime:        &endTime,
-		Limit:          50000,
-		SortBy:         "started_at",
-		SortDescending: false,
+		StartTime:       &startTime,
+		EndTime:         &endTime,
+		Limit:           50000,
+		SortBy:          "started_at",
+		SortDescending:  false,
+		ExcludePayloads: true,
 	}
 
 	executions, err := h.store.QueryExecutionRecords(ctx, filters)
@@ -577,10 +578,11 @@ func (h *DashboardHandler) GetEnhancedDashboardSummaryHandler(c *gin.Context) {
 
 	statusRunning := string(types.ExecutionStatusRunning)
 	runningExecutions, err := h.store.QueryExecutionRecords(ctx, types.ExecutionFilter{
-		Status:         &statusRunning,
-		Limit:          12,
-		SortBy:         "started_at",
-		SortDescending: true,
+		Status:          &statusRunning,
+		Limit:           12,
+		SortBy:          "started_at",
+		SortDescending:  true,
+		ExcludePayloads: true,
 	})
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("failed to query running executions for enhanced dashboard")
@@ -590,10 +592,11 @@ func (h *DashboardHandler) GetEnhancedDashboardSummaryHandler(c *gin.Context) {
 
 	statusWaiting := string(types.ExecutionStatusWaiting)
 	waitingExecutions, err := h.store.QueryExecutionRecords(ctx, types.ExecutionFilter{
-		Status:         &statusWaiting,
-		Limit:          12,
-		SortBy:         "started_at",
-		SortDescending: true,
+		Status:          &statusWaiting,
+		Limit:           12,
+		SortBy:          "started_at",
+		SortDescending:  true,
+		ExcludePayloads: true,
 	})
 	if err != nil {
 		logger.Logger.Error().Err(err).Msg("failed to query waiting executions for enhanced dashboard")
@@ -640,11 +643,12 @@ func (h *DashboardHandler) GetEnhancedDashboardSummaryHandler(c *gin.Context) {
 	if enableComparison {
 		prevStart, prevEnd := calculateComparisonPeriod(startTime, endTime)
 		prevFilters := types.ExecutionFilter{
-			StartTime:      &prevStart,
-			EndTime:        &prevEnd,
-			Limit:          50000,
-			SortBy:         "started_at",
-			SortDescending: false,
+			StartTime:       &prevStart,
+			EndTime:         &prevEnd,
+			Limit:           50000,
+			SortBy:          "started_at",
+			SortDescending:  false,
+			ExcludePayloads: true,
 		}
 
 		prevExecutions, err := h.store.QueryExecutionRecords(ctx, prevFilters)
@@ -1403,11 +1407,12 @@ func (h *DashboardHandler) getExecutionsSummaryAndSuccessRate(ctx context.Contex
 
 	// Get today's executions
 	todayFilters := types.ExecutionFilter{
-		StartTime:      &today,
-		EndTime:        &tomorrow,
-		Limit:          10000,
-		SortBy:         "started_at",
-		SortDescending: false,
+		StartTime:       &today,
+		EndTime:         &tomorrow,
+		Limit:           10000,
+		SortBy:          "started_at",
+		SortDescending:  false,
+		ExcludePayloads: true,
 	}
 	todayExecutions, err := h.store.QueryExecutionRecords(ctx, todayFilters)
 	if err != nil {
@@ -1416,11 +1421,12 @@ func (h *DashboardHandler) getExecutionsSummaryAndSuccessRate(ctx context.Contex
 
 	// Get yesterday's executions
 	yesterdayFilters := types.ExecutionFilter{
-		StartTime:      &yesterday,
-		EndTime:        &today,
-		Limit:          10000,
-		SortBy:         "started_at",
-		SortDescending: false,
+		StartTime:       &yesterday,
+		EndTime:         &today,
+		Limit:           10000,
+		SortBy:          "started_at",
+		SortDescending:  false,
+		ExcludePayloads: true,
 	}
 	yesterdayExecutions, err := h.store.QueryExecutionRecords(ctx, yesterdayFilters)
 	if err != nil {
