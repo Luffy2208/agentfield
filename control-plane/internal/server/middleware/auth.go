@@ -53,6 +53,13 @@ func APIKeyAuth(config AuthConfig) gin.HandlerFunc {
 			return
 		}
 
+		// Allow public Knowledge Base access (no secrets, supports adoption)
+		if strings.HasPrefix(c.Request.URL.Path, "/api/v1/agentic/kb/") {
+			c.Set("auth_level", "public")
+			c.Next()
+			return
+		}
+
 		// Connector routes use their own ConnectorTokenAuth middleware — skip global API key check.
 		// Security: ConnectorTokenAuth enforces X-Connector-Token with constant-time comparison,
 		// plus per-route ConnectorCapabilityCheck for fine-grained access control.
@@ -80,13 +87,23 @@ func APIKeyAuth(config AuthConfig) gin.HandlerFunc {
 		}
 
 		if subtle.ConstantTimeCompare([]byte(apiKey), []byte(config.APIKey)) != 1 {
+			// Set auth level as public for failed auth (used by smart 404 and agentic handlers)
+			c.Set("auth_level", "public")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"error":   "unauthorized",
-				"message": "invalid or missing API key",
+				"message": "invalid or missing API key. Provide via X-API-Key header, Authorization: Bearer <token>, or ?api_key= query param",
+				"help": map[string]string{
+					"kb":             "GET /api/v1/agentic/kb/topics (public, no auth required)",
+					"guide":          "GET /api/v1/agentic/kb/guide?goal=<your goal> (public)",
+					"api_discovery":  "GET /api/v1/agentic/discover (requires auth)",
+					"agent_discovery": "GET /api/v1/discovery/capabilities (requires auth — lists live agents, reasoners, skills)",
+				},
 			})
 			return
 		}
 
+		// Set auth level for downstream handlers (used by agentic API for filtering)
+		c.Set("auth_level", "api_key")
 		c.Next()
 	}
 }

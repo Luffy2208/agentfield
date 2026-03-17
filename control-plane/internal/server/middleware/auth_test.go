@@ -135,11 +135,13 @@ func TestAPIKeyAuth_InvalidKey(t *testing.T) {
 
 			assert.Equal(t, http.StatusUnauthorized, w.Code)
 
-			var resp map[string]string
+			var resp map[string]interface{}
 			err := json.Unmarshal(w.Body.Bytes(), &resp)
 			require.NoError(t, err)
 			assert.Equal(t, "unauthorized", resp["error"])
-			assert.Contains(t, resp["message"], "invalid or missing API key")
+			msg, _ := resp["message"].(string)
+			assert.Contains(t, msg, "invalid or missing API key")
+			assert.Contains(t, resp, "help", "401 should include help hints for agents")
 		})
 	}
 }

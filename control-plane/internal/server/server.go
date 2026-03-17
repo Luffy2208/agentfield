@@ -23,7 +23,10 @@ import (
 	"github.com/Agent-Field/agentfield/control-plane/internal/events"                          // Event system
 	"github.com/Agent-Field/agentfield/control-plane/internal/handlers"                        // Agent handlers
 	"github.com/Agent-Field/agentfield/control-plane/internal/handlers/admin"                  // Admin handlers
+	"github.com/Agent-Field/agentfield/control-plane/internal/handlers/agentic"                // Agentic API handlers
 	connectorpkg "github.com/Agent-Field/agentfield/control-plane/internal/handlers/connector" // Connector handlers
+	"github.com/Agent-Field/agentfield/control-plane/internal/server/apicatalog"               // API catalog
+	"github.com/Agent-Field/agentfield/control-plane/internal/server/knowledgebase"            // Knowledge base
 	"github.com/Agent-Field/agentfield/control-plane/internal/handlers/ui"                     // UI handlers
 	"github.com/Agent-Field/agentfield/control-plane/internal/infrastructure/communication"
 	"github.com/Agent-Field/agentfield/control-plane/internal/infrastructure/process"
@@ -81,6 +84,9 @@ type AgentFieldServer struct {
 	webhookDispatcher      services.WebhookDispatcher
 	observabilityForwarder services.ObservabilityForwarder
 	configMu               sync.RWMutex
+	// Agentic API
+	apiCatalog *apicatalog.Catalog
+	kb         *knowledgebase.KB
 }
 
 // NewAgentFieldServer creates a new instance of the AgentFieldServer.
@@ -429,6 +435,8 @@ func NewAgentFieldServer(cfg *config.Config) (*AgentFieldServer, error) {
 		observabilityForwarder: observabilityForwarder,
 		registryWatcherCancel:  nil,
 		adminGRPCPort:          adminPort,
+		apiCatalog:             initAPICatalog(),
+		kb:                     initKnowledgeBase(),
 	}, nil
 }
 
@@ -445,6 +453,20 @@ func (s *AgentFieldServer) configReloadFn() handlers.ConfigReloadFunc {
 		defer s.configMu.Unlock()
 		return overlayDBConfig(s.config, s.storage)
 	}
+}
+
+// initAPICatalog creates and populates the API endpoint catalog.
+func initAPICatalog() *apicatalog.Catalog {
+	catalog := apicatalog.New()
+	catalog.RegisterBatch(apicatalog.DefaultEntries())
+	return catalog
+}
+
+// initKnowledgeBase creates and populates the built-in knowledge base.
+func initKnowledgeBase() *knowledgebase.KB {
+	kb := knowledgebase.New()
+	knowledgebase.LoadDefaultContent(kb)
+	return kb
 }
 
 // Start initializes and starts the AgentFieldServer.
@@ -1585,80 +1607,90 @@ func (s *AgentFieldServer) setupRoutes() {
 
 			logger.Logger.Info().Msg("🔌 Connector routes registered")
 		}
+
+		// Agentic API routes — agent-optimized endpoints for discovery, query, and operations
+		agenticGroup := agentAPI.Group("/agentic")
+		{
+			agenticGroup.GET("/discover", agentic.DiscoverHandler(s.apiCatalog))
+			agenticGroup.POST("/query", agentic.QueryHandler(s.storage))
+			agenticGroup.GET("/run/:run_id", agentic.RunOverviewHandler(s.storage))
+			agenticGroup.GET("/agent/:agent_id/summary", agentic.AgentSummaryHandler(s.storage))
+			agenticGroup.POST("/batch", agentic.BatchHandler(s.Router))
+			agenticGroup.GET("/status", agentic.StatusHandler(s.storage))
+		}
+		logger.Logger.Info().Msg("🤖 Agentic API routes registered (discover, query, run, agent, batch, status)")
 	}
 
-	// SPA fallback - serve index.html for all /ui/* routes that don't match static files
-	// Only add this if we're NOT using embedded UI (since embedded UI handles its own NoRoute)
+	// Knowledge Base routes — public, no auth required (registered outside agentAPI group)
+	kbGroup := s.Router.Group("/api/v1/agentic/kb")
+	{
+		kbGroup.GET("/topics", agentic.KBTopicsHandler(s.kb))
+		kbGroup.GET("/articles", agentic.KBArticlesHandler(s.kb))
+		kbGroup.GET("/articles/:article_id/:sub_id", agentic.KBArticleHandler(s.kb))
+		kbGroup.GET("/articles/:article_id", agentic.KBArticleHandler(s.kb))
+		kbGroup.GET("/guide", agentic.KBGuideHandler(s.kb))
+	}
+	logger.Logger.Info().Msg("📚 Knowledge Base routes registered (public, no auth)")
+
+	// Smart 404 handler — provides endpoint suggestions for non-UI paths,
+	// preserves SPA fallback for /ui/* paths.
+	var uiNoRouteHandler gin.HandlerFunc
 	if s.config.UI.Enabled && (s.config.UI.Mode != "embedded" || !client.IsUIEmbedded()) {
-		s.Router.NoRoute(func(c *gin.Context) {
-			// Only handle /ui/* paths
-			if strings.HasPrefix(c.Request.URL.Path, "/ui/") {
-				// Check if it's a static asset by looking for common web asset file extensions
-				// This prevents reasoner IDs with dots (like "deepresearchagent.meta_research_methodology_reasoner")
-				// from being treated as static assets
-				path := strings.ToLower(c.Request.URL.Path)
-				isStaticAsset := strings.HasSuffix(path, ".js") ||
-					strings.HasSuffix(path, ".css") ||
-					strings.HasSuffix(path, ".html") ||
-					strings.HasSuffix(path, ".ico") ||
-					strings.HasSuffix(path, ".png") ||
-					strings.HasSuffix(path, ".jpg") ||
-					strings.HasSuffix(path, ".jpeg") ||
-					strings.HasSuffix(path, ".gif") ||
-					strings.HasSuffix(path, ".svg") ||
-					strings.HasSuffix(path, ".woff") ||
-					strings.HasSuffix(path, ".woff2") ||
-					strings.HasSuffix(path, ".ttf") ||
-					strings.HasSuffix(path, ".eot") ||
-					strings.HasSuffix(path, ".map") ||
-					strings.HasSuffix(path, ".json") ||
-					strings.HasSuffix(path, ".xml") ||
-					strings.HasSuffix(path, ".txt")
+		uiNoRouteHandler = func(c *gin.Context) {
+			// Check if it's a static asset
+			path := strings.ToLower(c.Request.URL.Path)
+			isStaticAsset := strings.HasSuffix(path, ".js") ||
+				strings.HasSuffix(path, ".css") ||
+				strings.HasSuffix(path, ".html") ||
+				strings.HasSuffix(path, ".ico") ||
+				strings.HasSuffix(path, ".png") ||
+				strings.HasSuffix(path, ".jpg") ||
+				strings.HasSuffix(path, ".jpeg") ||
+				strings.HasSuffix(path, ".gif") ||
+				strings.HasSuffix(path, ".svg") ||
+				strings.HasSuffix(path, ".woff") ||
+				strings.HasSuffix(path, ".woff2") ||
+				strings.HasSuffix(path, ".ttf") ||
+				strings.HasSuffix(path, ".eot") ||
+				strings.HasSuffix(path, ".map") ||
+				strings.HasSuffix(path, ".json") ||
+				strings.HasSuffix(path, ".xml") ||
+				strings.HasSuffix(path, ".txt")
 
-				if isStaticAsset {
-					// Let it 404 for missing static assets
-					c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
-					return
-				}
+			if isStaticAsset {
+				c.JSON(http.StatusNotFound, gin.H{"error": "file not found"})
+				return
+			}
 
-				// For SPA routes (including reasoner detail pages), serve index.html from filesystem
-				distPath := s.config.UI.DistPath
-				if distPath == "" {
-					// Get the executable path and find UI dist relative to it
-					execPath, err := os.Executable()
-					if err != nil {
-						distPath = filepath.Join("apps", "platform", "agentfield", "web", "client", "dist")
-						if _, statErr := os.Stat(distPath); os.IsNotExist(statErr) {
+			// SPA fallback — serve index.html for client-side routing
+			distPath := s.config.UI.DistPath
+			if distPath == "" {
+				execPath, err := os.Executable()
+				if err != nil {
+					distPath = filepath.Join("apps", "platform", "agentfield", "web", "client", "dist")
+					if _, statErr := os.Stat(distPath); os.IsNotExist(statErr) {
+						distPath = filepath.Join("web", "client", "dist")
+					}
+				} else {
+					execDir := filepath.Dir(execPath)
+					distPath = filepath.Join(execDir, "web", "client", "dist")
+					if _, err := os.Stat(distPath); os.IsNotExist(err) {
+						distPath = filepath.Join(filepath.Dir(execDir), "apps", "platform", "agentfield", "web", "client", "dist")
+					}
+					if _, err := os.Stat(distPath); os.IsNotExist(err) {
+						altPath := filepath.Join("apps", "platform", "agentfield", "web", "client", "dist")
+						if _, altErr := os.Stat(altPath); altErr == nil {
+							distPath = altPath
+						} else {
 							distPath = filepath.Join("web", "client", "dist")
-						}
-					} else {
-						execDir := filepath.Dir(execPath)
-						// Look for web/client/dist relative to the executable directory
-						distPath = filepath.Join(execDir, "web", "client", "dist")
-
-						// If that doesn't exist, try going up one level (if binary is in apps/platform/agentfield/)
-						if _, err := os.Stat(distPath); os.IsNotExist(err) {
-							distPath = filepath.Join(filepath.Dir(execDir), "apps", "platform", "agentfield", "web", "client", "dist")
-						}
-
-						// Final fallback to current working directory
-						if _, err := os.Stat(distPath); os.IsNotExist(err) {
-							altPath := filepath.Join("apps", "platform", "agentfield", "web", "client", "dist")
-							if _, altErr := os.Stat(altPath); altErr == nil {
-								distPath = altPath
-							} else {
-								distPath = filepath.Join("web", "client", "dist")
-							}
 						}
 					}
 				}
-				c.File(filepath.Join(distPath, "index.html"))
-			} else {
-				// For non-UI paths, return 404
-				c.JSON(http.StatusNotFound, gin.H{"error": "endpoint not found"})
 			}
-		})
+			c.File(filepath.Join(distPath, "index.html"))
+		}
 	}
+	s.Router.NoRoute(agentic.Smart404Handler(s.apiCatalog, uiNoRouteHandler))
 }
 
 // generateAgentFieldServerID creates a deterministic af server ID based on the agentfield home directory.
