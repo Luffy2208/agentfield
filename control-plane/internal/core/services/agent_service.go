@@ -449,7 +449,7 @@ func (as *DefaultAgentService) buildProcessConfig(agentNode packages.InstalledPa
 	// Prepare environment variables
 	env := os.Environ()
 	env = append(env, fmt.Sprintf("PORT=%d", port))
-	env = append(env, "AGENTFIELD_SERVER_URL=http://localhost:8080")
+	env = append(env, fmt.Sprintf("AGENTFIELD_SERVER_URL=%s", resolveServerURL()))
 
 	// Load environment variables from package .env file
 	if envVars, err := as.loadPackageEnvFile(agentNode.Path); err == nil {

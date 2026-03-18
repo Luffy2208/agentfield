@@ -365,7 +365,9 @@ class _PauseManager:
         self._exec_to_request: Dict[str, str] = {}
         self._lock = asyncio.Lock()
 
-    async def register(self, approval_request_id: str, execution_id: str = "") -> asyncio.Future:
+    async def register(
+        self, approval_request_id: str, execution_id: str = ""
+    ) -> asyncio.Future:
         """Register a new pending pause and return the Future to await."""
         async with self._lock:
             if approval_request_id in self._pending:
@@ -394,7 +396,9 @@ class _PauseManager:
                 return True
             return False
 
-    async def resolve_by_execution_id(self, execution_id: str, result: "ApprovalResult") -> bool:
+    async def resolve_by_execution_id(
+        self, execution_id: str, result: "ApprovalResult"
+    ) -> bool:
         """Fallback: resolve by execution_id when approval_request_id is not in the callback."""
         async with self._lock:
             request_id = self._exec_to_request.pop(execution_id, None)
@@ -464,7 +468,7 @@ class Agent(FastAPI):
     def __init__(
         self,
         node_id: str,
-        agentfield_server: str = "http://localhost:8080",
+        agentfield_server: Optional[str] = None,
         version: str = "1.0.0",
         description: Optional[str] = None,
         tags: Optional[List[str]] = None,
@@ -494,6 +498,13 @@ class Agent(FastAPI):
 
         set_log_level("DEBUG" if dev_mode else "INFO")
 
+        # Resolve control plane URL: explicit param > env vars > default
+        if agentfield_server is None:
+            agentfield_server = os.environ.get(
+                "AGENTFIELD_SERVER",
+                os.environ.get("AGENTFIELD_SERVER_URL", "http://localhost:8080"),
+            )
+
         """
         Creates a new agent node that can host reasoners (AI-powered functions) and skills
         (deterministic functions) while integrating with the AgentField ecosystem for distributed
@@ -504,7 +515,9 @@ class Agent(FastAPI):
                           cross-agent communication. Should be descriptive and unique
                           within your AgentField ecosystem.
             agentfield_server (str, optional): URL of the AgentField server for registration and
-                                        execution gateway. Defaults to "http://localhost:8080".
+                                        execution gateway. If not provided, checks AGENTFIELD_SERVER
+                                        and AGENTFIELD_SERVER_URL environment variables, then defaults
+                                        to "http://localhost:8080".
             version (str, optional): Version string for this agent. Used for compatibility
                                    checking and deployment tracking. Defaults to "1.0.0".
             ai_config (AIConfig, optional): Configuration for AI/LLM integration. If not
@@ -1676,7 +1689,11 @@ class Agent(FastAPI):
             func_name = func.__name__
             reasoner_id = decorator_name or func_name
             if decorator_path:
-                endpoint_path = decorator_path if decorator_path.startswith("/reasoners/") else f"/reasoners/{decorator_path.lstrip('/')}"
+                endpoint_path = (
+                    decorator_path
+                    if decorator_path.startswith("/reasoners/")
+                    else f"/reasoners/{decorator_path.lstrip('/')}"
+                )
             else:
                 endpoint_path = f"/reasoners/{reasoner_id}"
 
@@ -3861,8 +3878,12 @@ class Agent(FastAPI):
             # Clean up the future if we couldn't even tell the CP
             await self._pause_manager.resolve(
                 approval_request_id,
-                ApprovalResult(decision="error", feedback="failed to notify control plane",
-                               execution_id=execution_id, approval_request_id=approval_request_id),
+                ApprovalResult(
+                    decision="error",
+                    feedback="failed to notify control plane",
+                    execution_id=execution_id,
+                    approval_request_id=approval_request_id,
+                ),
             )
             raise
 
@@ -3871,7 +3892,9 @@ class Agent(FastAPI):
             tags=["approval", "waiting"],
         )
 
-        effective_timeout = timeout if timeout is not None else expires_in_hours * 3600.0
+        effective_timeout = (
+            timeout if timeout is not None else expires_in_hours * 3600.0
+        )
         try:
             result = await asyncio.wait_for(future, timeout=effective_timeout)
         except asyncio.TimeoutError:
@@ -3916,7 +3939,9 @@ class Agent(FastAPI):
             ctx = self._get_current_execution_context()
             execution_id = ctx.execution_id
 
-        future = await self._pause_manager.register(approval_request_id, execution_id or "")
+        future = await self._pause_manager.register(
+            approval_request_id, execution_id or ""
+        )
 
         effective_timeout = timeout if timeout is not None else 72 * 3600.0
         try:

@@ -37,9 +37,9 @@ func main() {
 		Date:    date,
 	}
 
-	// Create and execute the root command with actual server functionality
 	rootCmd := cli.NewRootCommand(runServer, versionInfo)
 	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, cli.AgentHintJSON(err.Error()))
 		logger.Logger.Error().Err(err).Msg("Error executing root command")
 		os.Exit(1)
 	}

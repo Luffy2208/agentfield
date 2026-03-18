@@ -20,11 +20,11 @@ import (
 // Mock implementations for testing
 
 type mockProcessManager struct {
-	startFunc    func(interfaces.ProcessConfig) (int, error)
-	stopFunc     func(int) error
-	statusFunc   func(int) (interfaces.ProcessInfo, error)
-	startedPIDs  map[int]bool
-	stoppedPIDs  map[int]bool
+	startFunc   func(interfaces.ProcessConfig) (int, error)
+	stopFunc    func(int) error
+	statusFunc  func(int) (interfaces.ProcessInfo, error)
+	startedPIDs map[int]bool
+	stoppedPIDs map[int]bool
 }
 
 func newMockProcessManager() *mockProcessManager {
@@ -117,9 +117,9 @@ func (m *mockPortManager) ReleasePort(port int) error {
 type mockRegistryStorage struct {
 	loadRegistryFunc func() (*domain.InstallationRegistry, error)
 	saveRegistryFunc func(*domain.InstallationRegistry) error
-	getPackageFunc    func(string) (*domain.InstalledPackage, error)
-	savePackageFunc   func(string, *domain.InstalledPackage) error
-	registry          *domain.InstallationRegistry
+	getPackageFunc   func(string) (*domain.InstalledPackage, error)
+	savePackageFunc  func(string, *domain.InstalledPackage) error
+	registry         *domain.InstallationRegistry
 }
 
 func newMockRegistryStorage() *mockRegistryStorage {
@@ -890,5 +890,12 @@ func TestBuildProcessConfig(t *testing.T) {
 	assert.Equal(t, agentPath, config.WorkDir)
 	assert.Equal(t, "/tmp/test-agent.log", config.LogFile)
 	assert.Contains(t, config.Env, "PORT=8001")
-	assert.Contains(t, config.Env, "AGENTFIELD_SERVER_URL=http://localhost:8080")
+	found := false
+	for _, e := range config.Env {
+		if strings.HasPrefix(e, "AGENTFIELD_SERVER_URL=") {
+			found = true
+			break
+		}
+	}
+	assert.True(t, found, "Expected AGENTFIELD_SERVER_URL in env")
 }
