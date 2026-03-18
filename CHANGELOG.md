@@ -6,6 +6,59 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.60-rc.2] - 2026-03-18
+
+
+### Added
+
+- Feat: CLI agent mode — af agent subcommand with structured JSON output (#284)
+
+* feat: CLI agent mode with structured JSON output and DX fixes
+
+Implements af agent subcommand (Phase 4 of the Agentic API Layer epic):
+- af agent status/discover/query/run/agent-summary/kb/batch subcommands
+- All output is structured JSON with ok/data/error/meta envelope
+- Structured JSON help (af agent help) for LLM-parseable discovery
+- Error responses include hint field for self-correction
+- Global --server/-s, --api-key/-k, --output/-o, --timeout/-t flags
+- Multi-control-plane targeting via --server flag or AGENTFIELD_SERVER env
+- HTTP proxy to /api/v1/agentic/* endpoints with latency tracking
+
+DX fixes:
+- Replace 4 hardcoded AGENTFIELD_SERVER_URL=http://localhost:8080 with
+  resolveServerURL() that reads AGENTFIELD_SERVER/AGENTFIELD_SERVER_URL env
+- Python SDK: agentfield_server param now defaults to None and resolves from
+  AGENTFIELD_SERVER/AGENTFIELD_SERVER_URL env vars before falling back to
+  http://localhost:8080
+
+Closes #281, closes #282
+
+* feat: add agent mode discovery hint to CLI help and error output
+
+When an AI agent runs 'af help', 'af badcommand', or 'af --badflags',
+the output now includes a hint: AI Agent? Run "af agent help" for
+structured JSON output. This creates a self-correcting loop — agents
+that accidentally invoke the human CLI are guided to agent mode.
+
+* feat: structured JSON errors for unknown CLI commands
+
+When agents run wrong commands (af badcommand or af agent badcommand),
+they now receive parseable JSON errors with hint fields and available
+command lists instead of Cobra's default human-oriented text.
+
+* fix: route `af agent help` to structured JSON help output
+
+The RunE handler's ArbitraryArgs intercepted "help" as an unknown
+subcommand before cobra could route to SetHelpCommand. Handle it
+explicitly so `af agent help` matches `af agent` behavior.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Abir Abbas <abirabbas1998@gmail.com>
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (72ec100)
+
 ## [0.1.60-rc.1] - 2026-03-17
 
 
