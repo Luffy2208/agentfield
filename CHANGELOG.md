@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.60-rc.4] - 2026-03-19
+
+
+### Added
+
+- Feat: extend permission middleware to memory endpoints (#285) (#289)
+
+* feat: extend permission middleware to memory endpoints with scope ownership validation (#285)
+
+Add MemoryPermissionMiddleware that enforces tag-based access policies and
+scope ownership checks on all memory routes, achieving permission parity
+with the existing execute endpoint protection. Wire up AccessControlMetadata
+fields (RequiredRoles, TeamRestricted, AuditAccess) and add comprehensive
+cross-agent isolation tests.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* feat: extend permission middleware to memory endpoints with scope ownership validation (#285)
+
+Add MemoryPermissionMiddleware that enforces tag-based access policies and
+scope ownership validation on all memory routes (key-value, vector, events).
+Wire up AccessControlMetadata fields (RequiredRoles, TeamRestricted, AuditAccess)
+on Memory records. Add cross-agent isolation tests verifying agents cannot
+read/write/delete other agents' scoped memory.
+
+Key decisions:
+- Fail closed on agent resolution errors (deny access if identity cannot be verified)
+- Only use ApprovedTags for authorization (not ProposedTags)
+- Unknown scopes are denied by default
+- Global scope remains open by design
+- Use stdlib strings.Split/TrimSpace instead of custom implementations
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* fix: handle unregistered agents in memory permission middleware
+
+When an agent provides identity headers but isn't registered as a node
+in storage, GetAgent returns an error. Previously this blocked all
+non-global memory access for unregistered agents. Now we skip tag-based
+policy evaluation (no tags to evaluate) while still enforcing scope
+ownership validation.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (08dfbfe)
+
 ## [0.1.60-rc.3] - 2026-03-18
 
 
