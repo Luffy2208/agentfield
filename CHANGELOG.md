@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.62-rc.1] - 2026-03-23
+
+
+### Fixed
+
+- Fix: QA authorization issues — revoke idempotency, health checks, UI bugs (#301)
+
+* fix: QA authorization issues — revoke idempotency, health checks, UI bugs
+
+- Return 409 Conflict when revoking already-revoked agent tags instead of
+  silently succeeding
+- Add health status and lifecycle checks to reasoner/skill execution handlers,
+  returning 503 when agent node is unhealthy or offline
+- Handle zero-value timestamps in formatRelativeTime (display "—" instead of
+  "Jan 1, 1")
+- Wire Refresh button on Authorization page to also re-fetch Agent Tags tab data
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* fix: allow reasoner/skill calls for agents with unknown health status
+
+Newly registered agents get HealthStatusUnknown (no heartbeat yet).
+The previous check required HealthStatusActive, which caused all
+functional tests to 503 because agents register and immediately
+invoke reasoners before a heartbeat can promote them to active.
+
+Changed the guard to only block HealthStatusInactive agents, which
+are definitively unreachable. Unknown and active agents pass through.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (4318c57)
+
 ## [0.1.61] - 2026-03-23
 
 ## [0.1.61-rc.2] - 2026-03-23
