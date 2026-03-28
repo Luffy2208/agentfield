@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.63-rc.3] - 2026-03-28
+
+
+### Other
+
+- Add unit test for retry handler (#307)
+
+* Add unit tests for retry helpers (isRetryableDBError, backoffDelay)
+
+* added better documentation (1dec612)
+
 ## [0.1.63-rc.2] - 2026-03-26
 
 
