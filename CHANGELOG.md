@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.63-rc.5] - 2026-03-29
+
+
+### Fixed
+
+- Fix(web-ui): add accessible labels to node card (#313)
+
+Co-authored-by: nanqinhu <139929317+nanqinhu@users.noreply.github.com> (cccbe71)
+
 ## [0.1.63-rc.4] - 2026-03-29
 
 
