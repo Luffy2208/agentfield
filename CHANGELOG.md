@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.63-rc.6] - 2026-03-29
+
+
+### Testing
+
+- Test(web-ui): add node card coverage (#314)
+
+Co-authored-by: nanqinhu <139929317+nanqinhu@users.noreply.github.com> (527c78c)
+
 ## [0.1.63-rc.5] - 2026-03-29
 
 
