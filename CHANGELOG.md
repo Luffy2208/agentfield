@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.63-rc.7] - 2026-03-30
+
+
+### Fixed
+
+- Fix(web-ui): replace unsafe any types in execution form (#312)
+
+Co-authored-by: nanqinhu <139929317+nanqinhu@users.noreply.github.com> (ab9ee07)
+
 ## [0.1.63-rc.6] - 2026-03-29
 
 
