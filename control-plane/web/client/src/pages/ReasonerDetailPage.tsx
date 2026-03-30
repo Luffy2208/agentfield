@@ -13,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { DIDIdentityBadge } from "../components/did/DIDDisplay";
 import { Badge } from "../components/ui/badge";
-import { ExecutionForm } from "../components/reasoners/ExecutionForm";
+import { ExecutionForm, type ExecutionFormData } from "../components/reasoners/ExecutionForm";
 import { ExecutionHistoryList } from "../components/reasoners/ExecutionHistoryList";
 import {
   ExecutionQueue,
@@ -72,7 +72,7 @@ export function ReasonerDetailPage() {
   const [metrics, setMetrics] = useState<PerformanceMetrics | null>(null);
 
   // Form state
-  const [formData, setFormData] = useState<{ input?: unknown }>({});
+  const [formData, setFormData] = useState<ExecutionFormData>({});
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
 
