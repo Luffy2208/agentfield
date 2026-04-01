@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.63-rc.9] - 2026-04-01
+
+
+### Added
+
+- Feat: execution resilience - LLM health, concurrency limits, retry, log streaming (#319)
+
+* feat: LLM health monitoring, concurrency limits, execution retry, and log streaming (#318)
+
+Add execution resilience features to address stuck job detection and recovery
+scenarios reported in #316:
+
+- LLM health monitor with circuit breaker (closed/open/half-open states)
+- Per-agent concurrency limits with atomic counters
+- Stale execution auto-retry with configurable max retries
+- Real-time execution log streaming via SSE
+- LLM health API endpoint for UI visibility
+- E2E resilience test suite with mock LLM server
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* feat: error classification, queue visibility, and comprehensive E2E tests
+
+Add structured error diagnostics so users can distinguish WHY executions
+fail (LLM down vs agent crash vs timeout vs unreachable), expose queue
+depth for concurrency monitoring, and rewrite E2E tests to validate real
+failure scenarios from #316.
+
+- Error classification: all execution failures now include error_category
+  (llm_unavailable, concurrency_limit, agent_timeout, agent_unreachable,
+  agent_error, bad_response, internal_error) in HTTP responses and
+  execution records
+- Queue status endpoint: GET /api/ui/v1/queue/status shows per-agent
+  concurrency slot usage, max config, and total running count
+- E2E tests expanded from 13 to 27 assertions across 15 test groups:
+  concurrency limiter proven with parallel slow requests (429 rejection),
+  agent kill/restart detection, crash error visibility, timeout behavior,
+  execution record error details, queue depth endpoint validation
+- Test reliability: stale DB cleanup, staggered agent starts, proper
+  output suppression, targeted process wait
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* fix: address PR 319 resilience review issues
+
+---------
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+Co-authored-by: Santosh <santosh@agentfield.ai> (93dc989)
+
 ## [0.1.63-rc.8] - 2026-03-30
 
 
