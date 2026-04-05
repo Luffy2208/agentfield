@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.64-rc.1] - 2026-04-05
+
+
+### Documentation
+
+- Docs: add CloudSecurity AF to Built With AgentField section (#327)
+
+Co-authored-by: OG <oktaygoktas@users.noreply.github.com>
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (4620a4b)
+
+
+
+### Fixed
+
+- Fix(cors): remove wildcard Access-Control-Allow-Origin from SSE handlers (#331)
+
+Six SSE handler endpoints hardcode `Access-Control-Allow-Origin: *`,
+bypassing the global gin-contrib/cors middleware which enforces a
+restricted origin list from configuration. This allows any origin to
+connect to real-time streaming endpoints and exfiltrate execution data,
+log streams, and agent status updates.
+
+Remove the per-handler CORS headers and let the router-level middleware
+handle origin validation consistently across all endpoints.
+
+Affected handlers:
+- StreamExecutionLogsHandler (execution_logs.go)
+- StreamWorkflowNodeNotesHandler (executions.go)
+- StreamExecutionEventsHandler (executions.go)
+- GetMCPEventsHandler (mcp.go)
+- StreamNodeEventsHandler (nodes.go)
+- StreamReasonerEventsHandler (reasoners.go)
+
+Co-authored-by: José Maia <glitch-ux@users.noreply.github.com> (9b41051)
+
 ## [0.1.63] - 2026-04-03
 
 ## [0.1.63-rc.10] - 2026-04-01
