@@ -31,7 +31,7 @@ func (h *MCPHandler) GetMCPHealthHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	nodeID := c.Param("nodeId")
 	if nodeID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "nodeId is required"})
+		RespondBadRequest(c, "nodeId is required")
 		return
 	}
 
@@ -44,14 +44,14 @@ func (h *MCPHandler) GetMCPHealthHandler(c *gin.Context) {
 	case "developer":
 		mode = domain.MCPHealthModeDeveloper
 	default:
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "mode must be 'user' or 'developer'"})
+		RespondBadRequest(c, "mode must be 'user' or 'developer'")
 		return
 	}
 
 	// Get detailed node information with MCP data
 	nodeDetails, err := h.uiService.GetNodeDetailsWithMCP(ctx, nodeID, mode)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "node not found or failed to retrieve MCP health"})
+		RespondNotFound(c, "node not found or failed to retrieve MCP health")
 		return
 	}
 
@@ -83,12 +83,12 @@ func (h *MCPHandler) RestartMCPServerHandler(c *gin.Context) {
 	alias := c.Param("alias")
 
 	if nodeID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "nodeId is required"})
+		RespondBadRequest(c, "nodeId is required")
 		return
 	}
 
 	if alias == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "alias is required"})
+		RespondBadRequest(c, "alias is required")
 		return
 	}
 
@@ -105,7 +105,7 @@ func (h *MCPHandler) RestartMCPServerHandler(c *gin.Context) {
 	// Call agent client to restart the MCP server
 	err := h.agentClient.RestartMCPServer(ctx, nodeID, alias)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to restart MCP server: " + err.Error()})
+		RespondInternalError(c, "failed to restart MCP server: "+err.Error())
 		return
 	}
 
@@ -128,12 +128,12 @@ func (h *MCPHandler) GetMCPToolsHandler(c *gin.Context) {
 	alias := c.Param("alias")
 
 	if nodeID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "nodeId is required"})
+		RespondBadRequest(c, "nodeId is required")
 		return
 	}
 
 	if alias == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "alias is required"})
+		RespondBadRequest(c, "alias is required")
 		return
 	}
 
@@ -150,7 +150,7 @@ func (h *MCPHandler) GetMCPToolsHandler(c *gin.Context) {
 	// Call agent client to get MCP tools
 	toolsResponse, err := h.agentClient.GetMCPTools(ctx, nodeID, alias)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to get MCP tools: " + err.Error()})
+		RespondInternalError(c, "failed to get MCP tools: "+err.Error())
 		return
 	}
 
@@ -179,14 +179,14 @@ func (h *MCPHandler) GetMCPStatusHandler(c *gin.Context) {
 	case "developer":
 		mode = domain.MCPHealthModeDeveloper
 	default:
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "mode must be 'user' or 'developer'"})
+		RespondBadRequest(c, "mode must be 'user' or 'developer'")
 		return
 	}
 
 	// Get all node summaries (which now include MCP data)
 	summaries, _, err := h.uiService.GetNodesSummary(ctx)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to get nodes summary"})
+		RespondInternalError(c, "failed to get nodes summary")
 		return
 	}
 
@@ -249,7 +249,7 @@ func (h *MCPHandler) GetMCPStatusHandler(c *gin.Context) {
 func (h *MCPHandler) GetMCPEventsHandler(c *gin.Context) {
 	nodeID := c.Param("nodeId")
 	if nodeID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "nodeId is required"})
+		RespondBadRequest(c, "nodeId is required")
 		return
 	}
 
@@ -303,7 +303,7 @@ func (h *MCPHandler) GetMCPEventsHandler(c *gin.Context) {
 func (h *MCPHandler) GetMCPMetricsHandler(c *gin.Context) {
 	nodeID := c.Param("nodeId")
 	if nodeID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "nodeId is required"})
+		RespondBadRequest(c, "nodeId is required")
 		return
 	}
 

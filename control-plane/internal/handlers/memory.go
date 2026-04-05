@@ -50,13 +50,6 @@ type MemoryResponse struct {
 	UpdatedAt time.Time   `json:"updated_at"`
 }
 
-// ErrorResponse defines the structure for an error response.
-type ErrorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
-	Code    int    `json:"code"`
-}
-
 // SetMemoryHandler handles the request to set a memory value.
 func SetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -68,7 +61,7 @@ func SetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 			logger.Logger.Debug().Err(err).Msg("🔍 MEMORY_HANDLER_DEBUG: JSON binding failed")
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error:   "invalid_request",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusBadRequest,
 			})
 			return
@@ -92,7 +85,7 @@ func SetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 			logger.Logger.Error().Err(err).Msg("❌ MEMORY_MARSHAL_ERROR: Failed to marshal memory data")
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error:   "marshal_error",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusBadRequest,
 			})
 			return
@@ -115,7 +108,7 @@ func SetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 			logger.Logger.Debug().Err(err).Msg("🔍 MEMORY_HANDLER_DEBUG: SetMemory failed")
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error:   "storage_error",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusInternalServerError,
 			})
 			return
@@ -163,7 +156,7 @@ func GetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error:   "invalid_request",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusBadRequest,
 			})
 			return
@@ -176,7 +169,7 @@ func GetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 			if err != nil {
 				c.JSON(http.StatusNotFound, ErrorResponse{
 					Error:   "not_found",
-					Message: err.Error(),
+					Details: err.Error(),
 					Code:    http.StatusNotFound,
 				})
 				return
@@ -203,7 +196,7 @@ func GetMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 
 		c.JSON(http.StatusNotFound, ErrorResponse{
 			Error:   "not_found",
-			Message: "Memory key not found in any scope",
+			Details: "Memory key not found in any scope",
 			Code:    http.StatusNotFound,
 		})
 	}
@@ -217,7 +210,7 @@ func DeleteMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error:   "invalid_request",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusBadRequest,
 			})
 			return
@@ -234,7 +227,7 @@ func DeleteMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 		if err := storageProvider.DeleteMemory(ctx, scope, scopeID, req.Key); err != nil {
 			c.JSON(http.StatusNotFound, ErrorResponse{
 				Error:   "not_found",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusNotFound,
 			})
 			return
@@ -276,7 +269,7 @@ func ListMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 		if scopeParam == "" {
 			c.JSON(http.StatusBadRequest, ErrorResponse{
 				Error:   "missing_scope",
-				Message: "Scope parameter is required for listing memory",
+				Details: "Scope parameter is required for listing memory",
 				Code:    http.StatusBadRequest,
 			})
 			return
@@ -288,7 +281,7 @@ func ListMemoryHandler(storageProvider MemoryStorage) gin.HandlerFunc {
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error:   "storage_error",
-				Message: err.Error(),
+				Details: err.Error(),
 				Code:    http.StatusInternalServerError,
 			})
 			return

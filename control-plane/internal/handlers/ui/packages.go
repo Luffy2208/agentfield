@@ -121,7 +121,7 @@ func (h *PackageHandler) ListPackagesHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	packages, err := h.storage.QueryAgentPackages(ctx, types.PackageFilters{})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to list packages"})
+		RespondInternalError(c, "failed to list packages")
 		return
 	}
 
@@ -185,7 +185,7 @@ func (h *PackageHandler) ListPackagesHandler(c *gin.Context) {
 func (h *PackageHandler) GetPackageDetailsHandler(c *gin.Context) {
 	packageID := c.Param("packageId")
 	if packageID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "packageId is required"})
+		RespondBadRequest(c, "packageId is required")
 		return
 	}
 
@@ -193,7 +193,7 @@ func (h *PackageHandler) GetPackageDetailsHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	pkg, err := h.storage.GetAgentPackage(ctx, packageID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, ErrorResponse{Error: "package not found"})
+		RespondNotFound(c, "package not found")
 		return
 	}
 
@@ -204,7 +204,7 @@ func (h *PackageHandler) GetPackageDetailsHandler(c *gin.Context) {
 	var schema map[string]interface{}
 	if len(pkg.ConfigurationSchema) > 0 {
 		if err := json.Unmarshal(pkg.ConfigurationSchema, &schema); err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to parse configuration schema"})
+			RespondInternalError(c, "failed to parse configuration schema")
 			return
 		}
 	}
