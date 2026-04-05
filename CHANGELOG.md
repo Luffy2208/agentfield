@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.64-rc.5] - 2026-04-05
+
+
+### Added
+
+- Feat(observability): enrich execution facts for downstream analysis (#341)
+
+* feat: enrich execution observability facts
+
+* test: cover execution observability contract
+
+* test: add functional execution webhook coverage
+
+* fix: use uvicorn websockets sansio (4a04419)
+
 ## [0.1.64-rc.4] - 2026-04-05
 
 
