@@ -134,4 +134,4 @@ __all__ = [
     "ValidationError",
 ]
 
-__version__ = "0.1.64-rc.9"
+__version__ = "0.1.64"
