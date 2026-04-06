@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { formatCompactRelativeTime } from "@/utils/dateFormat";
 import type { ReactNode } from "react";
 import type {
   AgentNodeSummary,
@@ -37,22 +38,7 @@ type HeaderAction = {
   disabled?: boolean;
 };
 
-const formatRelativeTime = (date: Date) => {
-  const diffMs = Date.now() - date.getTime();
-  if (diffMs < 0) return "just now";
-
-  const diffSeconds = Math.floor(diffMs / 1000);
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
-};
+const formatRelativeTime = formatCompactRelativeTime;
 
 export function NodesPage() {
   const [nodes, setNodes] = useState<AgentNodeSummary[]>([]);
@@ -624,7 +610,7 @@ export function NodesPage() {
           </div>
 
           {!isLoading && !error && nodes.length > 0 && (
-            <div className="py-2 text-center text-body-small">
+            <div className="py-2 text-center text-sm text-muted-foreground">
               Last updated: {lastRefresh.toLocaleTimeString()}
             </div>
           )}

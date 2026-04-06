@@ -81,6 +81,27 @@ export function formatRelativeTime(date: Date | string): string {
 }
 
 /**
+ * Compact relative time for dense UI (tables, badges, status strips).
+ * Examples: "now", "5s ago", "3m ago", "2h ago", "4d ago", ">1y ago"
+ * Accepts Date, string (ISO), or undefined/null (returns "—").
+ */
+export function formatCompactRelativeTime(date: Date | string | undefined | null): string {
+  if (!date) return '—';
+  const then = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(then.getTime())) return '—';
+  const diffMs = Date.now() - then.getTime();
+  if (diffMs < 0) return 'now';
+  if (diffMs > 365 * 24 * 60 * 60 * 1000) return '>1y ago';
+  const secs = Math.floor(diffMs / 1000);
+  if (secs < 60) return secs < 5 ? 'now' : `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+/**
  * Format a date as compact single-line format
  * Example: "Nov 10, 4:02 PM"
  */

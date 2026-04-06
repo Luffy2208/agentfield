@@ -190,6 +190,11 @@ type ExecutionDetailsResponse struct {
 	LatestNote          *types.ExecutionNote           `json:"latest_note,omitempty"`
 	WebhookRegistered   bool                           `json:"webhook_registered"`
 	WebhookEvents       []*types.ExecutionWebhookEvent `json:"webhook_events,omitempty"`
+	// Provenance (from execution_vcs when DID/VC is enabled for this execution)
+	CallerDID *string `json:"caller_did,omitempty"`
+	TargetDID *string `json:"target_did,omitempty"`
+	InputHash *string `json:"input_hash,omitempty"`
+	OutputHash *string `json:"output_hash,omitempty"`
 }
 
 type EnhancedExecution struct {
@@ -626,6 +631,18 @@ func (h *ExecutionHandler) StreamExecutionEventsHandler(c *gin.Context) {
 	eventChan := eventBus.Subscribe(subscriberID)
 	defer eventBus.Unsubscribe(subscriberID)
 
+	// Send an initial connected event so the browser EventSource detects the open.
+	connectedEvt := map[string]interface{}{
+		"type":      "connected",
+		"message":   "Execution events stream connected",
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+	if payload, err := json.Marshal(connectedEvt); err == nil {
+		if !writeSSE(c, payload) {
+			return
+		}
+	}
+
 	ctx := c.Request.Context()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -711,6 +728,15 @@ func (h *ExecutionHandler) toExecutionDetails(ctx context.Context, exec *types.E
 	webhookRegistered := exec.WebhookRegistered
 	webhookEvents := exec.WebhookEvents
 
+	notes := exec.Notes
+	if notes == nil {
+		notes = []types.ExecutionNote{}
+	}
+	var latestNote *types.ExecutionNote
+	if n := len(notes); n > 0 {
+		latestNote = &notes[n-1]
+	}
+
 	resp := ExecutionDetailsResponse{
 		ID:                  0,
 		ExecutionID:         exec.ExecutionID,
@@ -738,9 +764,9 @@ func (h *ExecutionHandler) toExecutionDetails(ctx context.Context, exec *types.E
 		RetryCount:          0,
 		CreatedAt:           exec.StartedAt.Format(time.RFC3339),
 		UpdatedAt:           &updated,
-		Notes:               nil,
-		NotesCount:          0,
-		LatestNote:          nil,
+		Notes:               notes,
+		NotesCount:          len(notes),
+		LatestNote:          latestNote,
 		WebhookRegistered:   webhookRegistered,
 		WebhookEvents:       webhookEvents,
 	}
@@ -759,6 +785,27 @@ func (h *ExecutionHandler) toExecutionDetails(ctx context.Context, exec *types.E
 			if wfExec.ApprovalRespondedAt != nil {
 				formatted := wfExec.ApprovalRespondedAt.Format(time.RFC3339)
 				resp.ApprovalRespondedAt = &formatted
+			}
+		}
+
+		execID := exec.ExecutionID
+		if vcs, err := h.storage.ListExecutionVCs(ctx, types.VCFilters{ExecutionID: &execID, Limit: 1}); err == nil && len(vcs) > 0 && vcs[0] != nil {
+			vc := vcs[0]
+			if t := strings.TrimSpace(vc.CallerDID); t != "" {
+				v := t
+				resp.CallerDID = &v
+			}
+			if t := strings.TrimSpace(vc.TargetDID); t != "" {
+				v := t
+				resp.TargetDID = &v
+			}
+			if t := strings.TrimSpace(vc.InputHash); t != "" {
+				v := t
+				resp.InputHash = &v
+			}
+			if t := strings.TrimSpace(vc.OutputHash); t != "" {
+				v := t
+				resp.OutputHash = &v
 			}
 		}
 	}

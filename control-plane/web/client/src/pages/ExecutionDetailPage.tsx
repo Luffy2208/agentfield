@@ -4,9 +4,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import { ResponsiveGrid } from "@/components/layout/ResponsiveGrid";
 import { ExecutionDetailsLayout } from "../components/execution/ExecutionDetailsLayout";
 import { ExecutionHeader } from "../components/execution/ExecutionHeader";
-import { ExecutionTimeline } from "../components/execution/ExecutionTimeline";
-import { RedesignedInputDataPanel } from "../components/execution/RedesignedInputDataPanel";
-import { RedesignedOutputDataPanel } from "../components/execution/RedesignedOutputDataPanel";
+import { ExecutionObservabilityPanel } from "../components/execution/ExecutionObservabilityPanel";
+import { InputDataPanel as RedesignedInputDataPanel } from "../components/execution/InputDataPanel";
+import { OutputDataPanel as RedesignedOutputDataPanel } from "../components/execution/OutputDataPanel";
 import { RedesignedErrorPanel } from "../components/execution/RedesignedErrorPanel";
 import { WorkflowBreadcrumb } from "../components/execution/WorkflowBreadcrumb";
 import { CollapsibleSection } from "../components/execution/CollapsibleSection";
@@ -137,7 +137,7 @@ export function ExecutionDetailPage() {
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="flex items-center gap-3 text-muted-foreground">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="text-heading-3">Loading execution details…</span>
+            <span className="text-base font-semibold">Loading execution details…</span>
           </div>
         </div>
       </ExecutionDetailsLayout>
@@ -150,8 +150,8 @@ export function ExecutionDetailPage() {
         <Card className="border-destructive bg-destructive/5">
           <CardContent className="p-6">
             <div className="text-center">
-              <h2 className="mb-2 text-heading-2 text-destructive">Failed to Load Execution</h2>
-              <p className="mb-4 text-body">{error}</p>
+              <h2 className="mb-2 text-xl font-semibold text-destructive">Failed to Load Execution</h2>
+              <p className="mb-4 text-sm">{error}</p>
               <Button onClick={() => window.location.reload()}>Try Again</Button>
             </div>
           </CardContent>
@@ -166,8 +166,8 @@ export function ExecutionDetailPage() {
         <Card>
           <CardContent className="p-6">
             <div className="text-center">
-              <h2 className="mb-2 text-heading-2 text-muted-foreground">Execution Not Found</h2>
-              <p className="text-body">
+              <h2 className="mb-2 text-xl font-semibold text-muted-foreground">Execution Not Found</h2>
+              <p className="text-sm">
                 The execution with ID “{executionId}” could not be located.
               </p>
             </div>
@@ -186,9 +186,7 @@ export function ExecutionDetailPage() {
 
       <WorkflowBreadcrumb execution={execution} onNavigateBack={handleNavigateBack} />
 
-      <div className="rounded-lg border border-border bg-background p-4">
-        <ExecutionTimeline execution={execution} />
-      </div>
+      <ExecutionObservabilityPanel execution={execution} />
 
       <div className="space-y-4">
         <RedesignedInputDataPanel execution={execution} />

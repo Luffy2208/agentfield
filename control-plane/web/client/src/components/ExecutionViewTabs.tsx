@@ -246,7 +246,7 @@ export function ExecutionViewTabs({ className }: ExecutionViewTabsProps) {
     <div className={cn("space-y-6", className)}>
       {/* Header */}
       <div className="space-y-2">
-        <h2 className="text-display">Execution Monitor</h2>
+        <h2 className="text-3xl font-bold tracking-tight">Execution Monitor</h2>
         <p className="text-muted-foreground">
           Track and analyze workflow executions across your AI agent network
         </p>
@@ -260,7 +260,7 @@ export function ExecutionViewTabs({ className }: ExecutionViewTabsProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Total</p>
-          <p className="text-display">{stats.total_count}</p>
+          <p className="text-3xl font-bold tracking-tight">{stats.total_count}</p>
                 </div>
                 <Pulse className="h-8 w-8 text-muted-foreground" />
               </div>
@@ -273,7 +273,7 @@ export function ExecutionViewTabs({ className }: ExecutionViewTabsProps) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground capitalize">{status}</p>
-                    <p className="text-display">{count as number}</p>
+                    <p className="text-3xl font-bold tracking-tight">{count as number}</p>
                   </div>
                   <Badge
                     variant={
@@ -399,8 +399,8 @@ export function ExecutionViewTabs({ className }: ExecutionViewTabsProps) {
           <TabsContent key={mode.id} value={mode.id} className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-heading-3">{mode.label}</h3>
-                <p className="text-body-small">{mode.description}</p>
+                <h3 className="text-base font-semibold">{mode.label}</h3>
+                <p className="text-sm text-muted-foreground">{mode.description}</p>
               </div>
               {data && (
                 <Badge variant="outline">
@@ -414,7 +414,7 @@ export function ExecutionViewTabs({ className }: ExecutionViewTabsProps) {
                 <CardContent className="py-8">
                   <div className="text-center">
                     <div className="mb-2 text-status-error">Error loading data</div>
-                    <div className="text-body-small">{error}</div>
+                    <div className="text-sm text-muted-foreground">{error}</div>
                   </div>
                 </CardContent>
               </Card>

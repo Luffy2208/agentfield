@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { Renew, Security, Terminal } from "@/components/ui/icon-bridge";
 import { useExecutionVCStatus } from "../hooks/useVCVerification";
 import type { EnhancedExecution } from "../types/workflows";
-import StatusIndicator from "./ui/status-indicator";
+import StatusIndicator from "@/components/status/UnifiedStatusIndicator";
 import { VerifiableCredentialBadge } from "./vc/VerifiableCredentialBadge";
 import { CompactTable } from "./ui/CompactTable";
 import { FastTableSearch, createSearchMatcher } from "./ui/FastTableSearch";
@@ -114,7 +114,7 @@ export function CompactExecutionsTable({
           </span>
           <span className="text-tertiary-foundation text-xs">•</span>
           <div className="flex items-center gap-1.5 text-tertiary-foundation min-w-0">
-            <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-muted text-[9px] font-medium flex-shrink-0">
+            <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-muted text-nano font-medium flex-shrink-0">
               {execution.agent_name
                 ? execution.agent_name.charAt(0).toUpperCase()
                 : "?"}

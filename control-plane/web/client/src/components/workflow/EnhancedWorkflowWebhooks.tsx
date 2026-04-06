@@ -71,7 +71,7 @@ export function EnhancedWorkflowWebhooks({
 
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-track-transparent scrollbar-thumb-border p-6 space-y-4">
         {webhookNodes.length === 0 ? (
-          <div className="text-body-small border border-dashed border-border/60 rounded-lg p-6 text-center">
+          <div className="text-sm text-muted-foreground border border-dashed border-border/60 rounded-lg p-6 text-center">
             This workflow has not registered any webhooks yet.
           </div>
         ) : (
@@ -98,7 +98,7 @@ export function EnhancedWorkflowWebhooks({
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[10px] uppercase tracking-wide",
+                          "text-micro uppercase tracking-wide",
                           hasFailure
                             ? "border-destructive/40 text-destructive"
                             : successCount > 0
@@ -109,7 +109,7 @@ export function EnhancedWorkflowWebhooks({
                         {statusLabel}
                       </Badge>
                     </div>
-                    <p className="text-body-small truncate">
+                    <p className="text-sm text-muted-foreground truncate">
                       {node.execution_id}
                     </p>
                   </div>
@@ -142,7 +142,7 @@ export function EnhancedWorkflowWebhooks({
                   </div>
                 </div>
 
-                <div className="flex items-center gap-4 text-body-small">
+                <div className="flex items-center gap-4 text-sm text-muted-foreground">
                   <span>{successCount} delivered</span>
                   <span>•</span>
                   <span>{failureCount} failed</span>
@@ -205,11 +205,11 @@ function SummaryCard({
         {icon}
       </div>
       <div className="flex flex-col gap-0.5">
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80">
+        <span className="text-micro uppercase tracking-wide text-muted-foreground/80">
           {label}
         </span>
         <span className={cn("text-sm font-semibold", toneClasses[tone])}>{value}</span>
-        {hint && <span className="text-body-small text-muted-foreground/70">{hint}</span>}
+        {hint && <span className="text-sm text-muted-foreground text-muted-foreground/70">{hint}</span>}
       </div>
     </div>
   );

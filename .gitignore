@@ -44,8 +44,11 @@ node_modules/
 # IDE / Tooling
 .idea/
 .vscode/
+.cursor/
 *.code-workspace
 .opencode/
+.agit/
+.claude/worktrees/
 
 # Generated assets
 coverage/

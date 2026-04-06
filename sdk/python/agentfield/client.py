@@ -1846,6 +1846,37 @@ class AgentFieldClient:
 
             interval = min(interval * backoff_factor, max_interval)
 
+    async def post_execution_logs(
+        self,
+        execution_id: str,
+        entries: Any,
+    ) -> None:
+        """POST structured execution log entries to the control plane.
+
+        Args:
+            execution_id: The execution these logs belong to.
+            entries: A single log entry dict or a list of entry dicts.
+        """
+        if not execution_id:
+            return
+        url = f"{self.api_base}/executions/{execution_id}/logs"
+        body: Dict[str, Any]
+        if isinstance(entries, list):
+            body = {"entries": entries}
+        else:
+            body = {"entries": [entries]}
+        try:
+            client = await self.get_async_http_client()
+            await client.post(
+                url,
+                json=body,
+                headers=self._get_auth_headers(),
+                timeout=5.0,
+            )
+        except Exception:
+            # Best-effort: don't break execution if log dispatch fails
+            pass
+
     async def close_async_execution_manager(self) -> None:
         """
         Close the async execution manager and cleanup resources.

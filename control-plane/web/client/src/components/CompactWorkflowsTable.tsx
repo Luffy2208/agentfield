@@ -15,7 +15,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "./ui/hover-card";
-import StatusIndicator from "./ui/status-indicator";
+import StatusIndicator from "@/components/status/UnifiedStatusIndicator";
 import { VerifiableCredentialBadge } from "./vc/VerifiableCredentialBadge";
 import { WorkflowDeleteDialog } from "./workflows/WorkflowDeleteDialog";
 import {
@@ -97,10 +97,10 @@ function WorkflowHoverCard({
             <h4 className="font-semibold text-sm mb-1">
               {workflow.display_name}
             </h4>
-            <p className="text-body-small font-mono">
+            <p className="text-sm text-muted-foreground font-mono">
               ID: {workflow.workflow_id}
             </p>
-            <p className="text-body-small text-muted-foreground font-mono">
+            <p className="text-sm text-muted-foreground text-muted-foreground font-mono">
               Run: {workflow.run_id}
             </p>
           </div>
@@ -446,7 +446,7 @@ export function CompactWorkflowsTable({
               </span>
               {statusDisplay.secondary && (
                 <>
-                  <span className="text-body-small">•</span>
+                  <span className="text-sm text-muted-foreground">•</span>
                   <span className={`text-xs font-medium ${statusDisplay.secondaryClass}`}>
                     {statusDisplay.secondary}
                   </span>

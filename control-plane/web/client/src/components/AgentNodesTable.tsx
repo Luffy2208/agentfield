@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { ChevronDown, ChevronUp, ServerProxy, Time, Earth, Network_3 } from '@/components/ui/icon-bridge';
 import { getNodeDetails } from '../services/api';
-import StatusIndicator from './ui/status-indicator';
+import StatusIndicator from '@/components/status/UnifiedStatusIndicator';
 import ReasonersList from './ReasonersList';
 import SkillsList from './SkillsList';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -68,7 +68,7 @@ const AgentNodesTable: React.FC<AgentNodesTableProps> = ({ nodes, isLoading, err
         <div className="mx-auto w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
           <Network_3 className="h-12 w-12 text-muted-foreground" />
         </div>
-        <h3 className="text-heading-3 mb-2">No Agent Nodes</h3>
+        <h3 className="text-base font-semibold mb-2">No Agent Nodes</h3>
         <p className="text-muted-foreground">No agent nodes are currently registered with the AgentField server.</p>
       </div>
     );
@@ -162,7 +162,7 @@ const NodeRow: React.FC<NodeRowProps> = ({ nodeSummary }) => {
                 {isLoadingDetails && (
                   <div className="flex items-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                    <p className="text-body-small">Loading node details...</p>
+                    <p className="text-sm text-muted-foreground">Loading node details...</p>
                   </div>
                 )}
                 {errorDetails && (
@@ -174,14 +174,14 @@ const NodeRow: React.FC<NodeRowProps> = ({ nodeSummary }) => {
                       <div className="flex items-center gap-2">
                         <Earth className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <p className="text-body-small">Base URL</p>
+                          <p className="text-sm text-muted-foreground">Base URL</p>
                           <p className="text-sm font-mono">{nodeDetails.base_url}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
                         <ServerProxy className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <p className="text-body-small">Registered</p>
+                          <p className="text-sm text-muted-foreground">Registered</p>
                           <p className="text-sm">{nodeDetails.registered_at ? (() => {
                             const date = new Date(nodeDetails.registered_at);
                             return !isNaN(date.getTime()) ? date.toLocaleString() : 'Invalid Date';
@@ -191,7 +191,7 @@ const NodeRow: React.FC<NodeRowProps> = ({ nodeSummary }) => {
                       <div className="flex items-center gap-2">
                         <Time className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <p className="text-body-small">Last Heartbeat</p>
+                          <p className="text-sm text-muted-foreground">Last Heartbeat</p>
                           <p className="text-sm">{nodeDetails.last_heartbeat ? (() => {
                             const date = new Date(nodeDetails.last_heartbeat);
                             return !isNaN(date.getTime()) ? date.toLocaleString() : 'Invalid Date';

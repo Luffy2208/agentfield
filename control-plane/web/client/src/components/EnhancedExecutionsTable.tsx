@@ -118,7 +118,7 @@ function LoadingRow() {
       >
         <div className="flex items-center justify-center col-span-7">
           <SpinnerGap className="h-4 w-4 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-body-small">
+          <span className="ml-2 text-sm text-muted-foreground">
             Loading more executions…
           </span>
         </div>
@@ -132,7 +132,7 @@ function EmptyState() {
     <Card className="card-foundation">
       <CardContent className="py-12">
         <div className="text-center space-y-2">
-          <div className="text-secondary-foundation text-heading-3">
+          <div className="text-secondary-foundation text-base font-semibold">
             No executions yet
           </div>
           <div className="text-tertiary-foundation">
@@ -231,7 +231,7 @@ export function EnhancedExecutionsTable({
         <CardContent className="p-0">
           <div className="sticky top-0 z-10 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-3 py-2.5">
             <div
-              className="grid items-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+              className="grid items-center text-micro font-semibold uppercase tracking-wider text-muted-foreground"
               style={{ gridTemplateColumns: COLUMN_TEMPLATE }}
             >
               <SortableHeaderCell
@@ -263,7 +263,7 @@ export function EnhancedExecutionsTable({
                 onSortChange={onSortChange}
                 align="right"
               />
-              <div className="flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              <div className="flex items-center justify-center gap-1 text-micro font-semibold uppercase tracking-wider text-muted-foreground">
                 <ShieldCheck className="h-3 w-3" /> VC
               </div>
               <SortableHeaderCell
@@ -273,7 +273,7 @@ export function EnhancedExecutionsTable({
                 sortOrder={sortOrder}
                 onSortChange={onSortChange}
               />
-              <div className="text-right text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"></div>
+              <div className="text-right text-micro font-semibold uppercase tracking-wider text-muted-foreground"></div>
             </div>
           </div>
 
@@ -322,8 +322,8 @@ export function EnhancedExecutionsTable({
                           <div className="truncate font-medium text-sm">
                             {execution.task_name || "Unknown Reasoner"}
                           </div>
-                          <div className="flex items-center gap-2 text-body-small">
-                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-muted text-[10px] font-medium">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-muted text-micro font-medium">
                               {execution.agent_name
                                 ? execution.agent_name.charAt(0).toUpperCase()
                                 : "?"}
@@ -381,7 +381,7 @@ export function EnhancedExecutionsTable({
           </div>
 
           {isFetchingMore && (
-            <div className="flex items-center justify-center gap-2 border-t border-border bg-muted/20 py-3 text-body-small">
+            <div className="flex items-center justify-center gap-2 border-t border-border bg-muted/20 py-3 text-sm text-muted-foreground">
               <SpinnerGap className="h-4 w-4 animate-spin" />
               Loading more executions…
             </div>

@@ -127,7 +127,7 @@ const uiComponents: AutoFormUIComponents = {
   ),
   ArrayElementWrapper: ({ children, onRemove, index }) => (
     <div className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
-      <div className="flex items-center justify-between text-body-small">
+      <div className="flex items-center justify-between text-sm text-muted-foreground">
         <span>Item {index + 1}</span>
         <Button type="button" variant="ghost" size="sm" onClick={onRemove}>
           Remove
@@ -210,7 +210,7 @@ const BooleanField: React.FC<FieldComponentProps> = ({ id, value, inputProps }) 
         ref={(element) => assignRef(ref, element)}
         {...rest}
       />
-      <span className="text-body-small">{checked ? "True" : "False"}</span>
+      <span className="text-sm text-muted-foreground">{checked ? "True" : "False"}</span>
     </div>
   );
 };
@@ -452,7 +452,7 @@ export function ExecutionForm({ schema, formData, onChange, validationErrors }: 
       {rawJsonError ? (
         <p className="text-sm text-destructive">{rawJsonError}</p>
       ) : (
-        <p className="text-body-small">
+        <p className="text-sm text-muted-foreground">
           Edit the full JSON payload. Changes are synchronised with the structured form when the JSON
           is valid.
         </p>
@@ -464,7 +464,7 @@ export function ExecutionForm({ schema, formData, onChange, validationErrors }: 
     return (
       <div className="space-y-4">
         {renderValidationAlert()}
-        <Alert className="border-border-secondary bg-muted/10 text-body-small">
+        <Alert className="border-border bg-muted/10 text-sm text-muted-foreground">
           Structured form rendering is unavailable for this schema. Use the raw JSON editor below.
         </Alert>
         {renderRawJsonEditor()}

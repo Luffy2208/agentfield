@@ -92,6 +92,7 @@ describe('MCP integration', () => {
       req: {} as any,
       res: {} as any,
       agent,
+      logger: agent.getExecutionLogger(),
       memory: agent.getMemoryInterface({ executionId: 'exec-1', runId: 'run-1', workflowId: 'wf-1' }),
       workflow: agent.getWorkflowReporter({ executionId: 'exec-1', runId: 'run-1', workflowId: 'wf-1' } as any),
       did: agent.getDidInterface({ executionId: 'exec-1', runId: 'run-1', workflowId: 'wf-1' } as any, { message: 'hello' })

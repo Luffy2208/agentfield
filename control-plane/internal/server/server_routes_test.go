@@ -61,6 +61,18 @@ func (s *stubStorage) GetExecutionEventBus() *events.ExecutionEventBus {
 	return s.eventBus
 }
 
+func (s *stubStorage) StoreExecutionLogEntry(ctx context.Context, entry *types.ExecutionLogEntry) error {
+	return nil
+}
+
+func (s *stubStorage) ListExecutionLogEntries(ctx context.Context, executionID string, afterSeq *int64, limit int, levels []string, nodeIDs []string, sources []string, query string) ([]*types.ExecutionLogEntry, error) {
+	return nil, nil
+}
+
+func (s *stubStorage) PruneExecutionLogEntries(ctx context.Context, executionID string, maxEntries int, olderThan time.Time) error {
+	return nil
+}
+
 // Stub implementations for remaining StorageProvider methods
 func (s *stubStorage) Initialize(ctx context.Context, config storage.StorageConfig) error { return nil }
 func (s *stubStorage) Close(ctx context.Context) error                                    { return nil }
@@ -164,7 +176,7 @@ func (s *stubStorage) DeleteMemory(ctx context.Context, scope, scopeID, key stri
 func (s *stubStorage) ListMemory(ctx context.Context, scope, scopeID string) ([]*types.Memory, error) {
 	return nil, nil
 }
-func (s *stubStorage) SetVector(ctx context.Context, record *types.VectorRecord) error    { return nil }
+func (s *stubStorage) SetVector(ctx context.Context, record *types.VectorRecord) error { return nil }
 func (s *stubStorage) GetVector(ctx context.Context, scope, scopeID, key string) (*types.VectorRecord, error) {
 	return nil, nil
 }
@@ -299,6 +311,10 @@ func (s *stubStorage) PublishMemoryChange(ctx context.Context, event types.Memor
 }
 func (s *stubStorage) GetWorkflowExecutionEventBus() *events.EventBus[*types.WorkflowExecutionEvent] {
 	return nil
+}
+
+func (s *stubStorage) GetExecutionLogEventBus() *events.EventBus[*types.ExecutionLogEntry] {
+	return events.NewEventBus[*types.ExecutionLogEntry]()
 }
 
 // DID Registry operations

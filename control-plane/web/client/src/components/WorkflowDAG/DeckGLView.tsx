@@ -1,4 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import DeckGL from "@deck.gl/react";
 import {
   COORDINATE_SYSTEM,
@@ -8,8 +17,44 @@ import {
 } from "@deck.gl/core";
 import type { PickingInfo } from "@deck.gl/core";
 import { ScatterplotLayer, PathLayer } from "@deck.gl/layers";
+import { Minus, Plus, Scan } from "@/components/ui/icon-bridge";
+import { Button } from "../ui/button";
+import { Card, CardContent } from "../ui/card";
+import { Separator } from "../ui/separator";
+import { cn } from "../../lib/utils";
 import { HoverDetailPanel } from "./HoverDetailPanel";
 import type { DeckEdge, DeckNode, WorkflowDAGNode } from "./DeckGLGraph";
+
+export type WorkflowDeckGLViewHandle = {
+  fitToContent: () => void;
+  zoomIn: () => void;
+  zoomOut: () => void;
+};
+
+/** Bounds used on initial load and when the user chooses “fit to view”. */
+function computeDeckFitFromNodes(
+  deckNodes: DeckNode[],
+): Pick<OrthographicViewState, "target" | "zoom"> {
+  if (!deckNodes.length) {
+    return { target: [0, 0, 0], zoom: 0 };
+  }
+
+  const xs = deckNodes.map((node) => node.position[0]);
+  const ys = deckNodes.map((node) => node.position[1]);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+
+  const padding = 100;
+  const width = maxX - minX || 1;
+  const height = maxY - minY || 1;
+
+  return {
+    target: [minX + width / 2, minY + height / 2, 0],
+    zoom: Math.log2(Math.min(1200 / (width + padding), 800 / (height + padding))),
+  };
+}
 
 interface WorkflowDeckGLViewProps {
   nodes: DeckNode[];
@@ -25,12 +70,13 @@ const initialViewState: OrthographicViewState = {
   minZoom: -6,
 };
 
-export const WorkflowDeckGLView = ({
-  nodes,
-  edges,
-  onNodeClick,
-  onNodeHover,
-}: WorkflowDeckGLViewProps) => {
+export const WorkflowDeckGLView = forwardRef<
+  WorkflowDeckGLViewHandle,
+  WorkflowDeckGLViewProps
+>(function WorkflowDeckGLView(
+  { nodes, edges, onNodeClick, onNodeHover },
+  ref,
+) {
   const [viewState, setViewState] =
     useState<OrthographicViewState>(initialViewState);
 
@@ -138,26 +184,39 @@ export const WorkflowDeckGLView = ({
     };
   }, []);
 
-  useEffect(() => {
+  const fitToContent = useCallback(() => {
     if (!nodes.length) return;
-
-    const xs = nodes.map((node) => node.position[0]);
-    const ys = nodes.map((node) => node.position[1]);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const minY = Math.min(...ys);
-    const maxY = Math.max(...ys);
-
-    const padding = 100;
-    const width = maxX - minX || 1;
-    const height = maxY - minY || 1;
-
     setViewState((prev) => ({
       ...prev,
-      target: [minX + width / 2, minY + height / 2, 0],
-      zoom: Math.log2(Math.min(1200 / (width + padding), 800 / (height + padding))),
+      ...computeDeckFitFromNodes(nodes),
     }));
   }, [nodes]);
+
+  useEffect(() => {
+    if (!nodes.length) return;
+    setViewState((prev) => ({
+      ...prev,
+      ...computeDeckFitFromNodes(nodes),
+    }));
+  }, [nodes]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      fitToContent,
+      zoomIn: () =>
+        setViewState((s) => {
+          const currentZoom = typeof s.zoom === "number" ? s.zoom : 0;
+          return { ...s, zoom: Math.min(currentZoom + 0.35, (s.maxZoom as number | undefined) ?? 8) };
+        }),
+      zoomOut: () =>
+        setViewState((s) => {
+          const currentZoom = typeof s.zoom === "number" ? s.zoom : 0;
+          return { ...s, zoom: Math.max(currentZoom - 0.35, (s.minZoom as number | undefined) ?? -6) };
+        }),
+    }),
+    [fitToContent],
+  );
 
   // Dynamic node styling based on selection and hover state
   const styledNodes = useMemo(() => {
@@ -323,4 +382,55 @@ export const WorkflowDeckGLView = ({
       />
     </div>
   );
-};
+});
+
+export function WorkflowDeckGraphControls({
+  deckRef,
+  className,
+}: {
+  deckRef: RefObject<WorkflowDeckGLViewHandle | null>;
+  className?: string;
+}) {
+  return (
+    <div className={cn("pointer-events-auto", className)}>
+      <Card className="border-border/80 bg-card/95 shadow-md backdrop-blur-sm">
+        <CardContent className="flex flex-col gap-0.5 p-1.5">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => deckRef.current?.fitToContent()}
+            aria-label="Fit graph to view"
+            title="Fit graph to view"
+          >
+            <Scan className="size-4" />
+          </Button>
+          <Separator className="bg-border/60" />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => deckRef.current?.zoomIn()}
+            aria-label="Zoom in"
+            title="Zoom in"
+          >
+            <Plus className="size-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => deckRef.current?.zoomOut()}
+            aria-label="Zoom out"
+            title="Zoom out"
+          >
+            <Minus className="size-4" />
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

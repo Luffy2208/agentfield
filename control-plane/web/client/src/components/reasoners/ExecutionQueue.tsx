@@ -431,7 +431,7 @@ export const ExecutionQueue = forwardRef<ExecutionQueueRef, ExecutionQueueProps>
     <div className="space-y-4">
       {/* Active Executions */}
       {activeExecutions.length > 0 && (
-        <Card className="card-elevated">
+        <Card className="bg-card border border-border rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <InProgress className="h-4 w-4 text-blue-500" />
@@ -469,7 +469,7 @@ export const ExecutionQueue = forwardRef<ExecutionQueueRef, ExecutionQueueProps>
                         </span>
                       )}
                     </div>
-                    <div className="text-body-small">
+                    <div className="text-sm text-muted-foreground">
                       {execution.status === 'running'
                         ? `Running ${Math.floor((Date.now() - execution.startTime.getTime()) / 1000)}s...`
                         : 'Queued...'
@@ -532,10 +532,10 @@ export const ExecutionQueue = forwardRef<ExecutionQueueRef, ExecutionQueueProps>
 
       {/* Recent Executions */}
       {recentExecutions.length > 0 && (
-        <Card className="card-elevated">
+        <Card className="bg-card border border-border rounded-lg shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <Analytics className="h-4 w-4 text-text-tertiary" />
+              <Analytics className="h-4 w-4 text-muted-foreground" />
               Recent Executions
             </CardTitle>
           </CardHeader>
@@ -592,7 +592,7 @@ export const ExecutionQueue = forwardRef<ExecutionQueueRef, ExecutionQueueProps>
                         </span>
                       )}
                     </div>
-                    <div className="text-body-small">
+                    <div className="text-sm text-muted-foreground">
                       {execution.duration}ms • {execution.endTime?.toLocaleTimeString()}
                       {execution.execution_id && (
                         <span className="ml-2 text-primary/60">

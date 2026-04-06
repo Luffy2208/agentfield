@@ -45,7 +45,7 @@ export function TopNavigation() {
       nodes: { label: "Agent Nodes", href: "/nodes" },
       packages: { label: "Packages", href: "/packages" },
       settings: { label: "Settings", href: "/settings" },
-      agents: { label: "My Agents", href: "/agents" },
+      agents: { label: "Agent nodes", href: "/agents" },
       dashboard: { label: "Dashboard", href: "/dashboard" },
       "dashboard/enhanced": {
         label: "Enhanced Dashboard",

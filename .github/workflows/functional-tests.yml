@@ -99,7 +99,7 @@ jobs:
             echo "✓ OPENROUTER_API_KEY is configured"
             echo "✓ OPENROUTER_MODEL: $OPENROUTER_MODEL"
           fi
-      
+
       - name: Run functional tests (${{ matrix.storage_mode }})
         run: |
           cd tests/functional

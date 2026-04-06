@@ -121,7 +121,7 @@ export function ActivityHeatmap({
             variant={view === "failures" ? "default" : "ghost"}
             size="sm"
             onClick={() => setView("failures")}
-            className="h-6 px-2 text-[10px]"
+            className="h-6 px-2 text-micro"
           >
             Failures
           </Button>
@@ -129,7 +129,7 @@ export function ActivityHeatmap({
             variant={view === "usage" ? "default" : "ghost"}
             size="sm"
             onClick={() => setView("usage")}
-            className="h-6 px-2 text-[10px]"
+            className="h-6 px-2 text-micro"
           >
             Usage
           </Button>
@@ -149,7 +149,7 @@ export function ActivityHeatmap({
               {HOUR_LABELS.map((hour) => (
                 <div
                   key={hour}
-                  className="flex-1 text-center text-[9px] text-muted-foreground"
+                  className="flex-1 text-center text-nano text-muted-foreground"
                   style={{ minWidth: 0 }}
                 >
                   {hour}
@@ -162,7 +162,7 @@ export function ActivityHeatmap({
               {DAY_LABELS.map((day, dayIndex) => (
                 <div key={day} className="flex items-center gap-1 flex-1">
                   {/* Day label */}
-                  <div className="w-8 text-right text-[10px] text-muted-foreground pr-1">
+                  <div className="w-8 text-right text-micro text-muted-foreground pr-1">
                     {day}
                   </div>
                   {/* Cells for each hour */}
@@ -188,7 +188,7 @@ export function ActivityHeatmap({
             </div>
 
             {/* Legend */}
-            <div className="flex items-center justify-center gap-4 mt-3 text-[10px] text-muted-foreground">
+            <div className="flex items-center justify-center gap-4 mt-3 text-micro text-muted-foreground">
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded-sm bg-muted-foreground/10 border border-border/30" />
                 <span>None</span>

@@ -92,7 +92,7 @@ export function ExecutionStatusBar({
                 <h1 className="font-semibold text-foreground">
                   {execution.reasoner_id}
                 </h1>
-                <div className="flex items-center gap-2 text-body-small">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <span>ID:</span>
                   <code className="font-mono text-xs">
                     {execution.execution_id.slice(0, 8)}...
@@ -112,7 +112,7 @@ export function ExecutionStatusBar({
 
           {/* Right: Actions & Metrics */}
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-4 text-body-small">
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <div className="flex items-center gap-1">
                 <Clock className="w-4 h-4" />
                 <span>{formatDuration(execution.duration_ms)}</span>

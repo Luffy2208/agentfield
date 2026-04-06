@@ -304,12 +304,12 @@ function EnhancedWorkflowDetailPageContent() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <h2 className="text-heading-2">
+          <h2 className="text-xl font-semibold">
             {error || "Workflow not found"}
           </h2>
           <button
             onClick={() => navigate("/workflows")}
-            className="text-body-small text-muted-foreground hover:text-foreground underline"
+            className="text-sm text-muted-foreground text-muted-foreground hover:text-foreground underline"
           >
             ← Back to workflows
           </button>

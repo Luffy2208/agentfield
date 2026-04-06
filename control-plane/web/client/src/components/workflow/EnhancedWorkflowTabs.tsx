@@ -14,7 +14,7 @@ import {
   AnimatedTabs,
   AnimatedTabsList,
   AnimatedTabsTrigger,
-} from "../ui/animated-tabs";
+} from "../ui/tabs";
 import { cn } from "../../lib/utils";
 import { getStatusLabel, normalizeExecutionStatus } from "../../utils/status";
 import type { WorkflowSummary, WorkflowTimelineNode } from "../../types/workflows";
@@ -164,7 +164,7 @@ export function EnhancedWorkflowTabs({
 
       {/* Tab Context Info */}
       <div className={cn(
-        "flex items-center gap-4 ml-6 text-body-small",
+        "flex items-center gap-4 ml-6 text-sm text-muted-foreground",
         isMobile ? "hidden" : "flex"
       )}>
         {/* Current Tab Info */}

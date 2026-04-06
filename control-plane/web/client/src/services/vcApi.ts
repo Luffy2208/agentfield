@@ -9,7 +9,8 @@ import type {
   VCStatusSummary,
   AuditTrailEntry,
   ComprehensiveVCVerificationResult,
-  WorkflowVCStatusBatchResponse
+  WorkflowVCStatusBatchResponse,
+  ProvenanceVerificationResponse
 } from '../types/did';
 import { normalizeExecutionStatus, isSuccessStatus, isFailureStatus } from '../utils/status';
 import { getGlobalApiKey } from './api';
@@ -106,11 +107,57 @@ export async function verifyVC(vcDocument: any): Promise<VCVerificationResponse>
   });
 }
 
+export interface VerifyProvenanceAuditOptions {
+  verbose?: boolean;
+}
+
+/**
+ * Verify exported provenance JSON (workflow audit, execution bundle, or bare W3C VC).
+ * POST /api/ui/v1/did/verify-audit — same logic as `af vc verify`.
+ */
+export async function verifyProvenanceAudit(
+  document: unknown,
+  options?: VerifyProvenanceAuditOptions,
+): Promise<ProvenanceVerificationResponse> {
+  const body =
+    typeof document === 'string' ? document : JSON.stringify(document);
+  const params = new URLSearchParams();
+  if (options?.verbose) params.set('verbose', 'true');
+  const q = params.toString();
+  const path = `/did/verify-audit${q ? `?${q}` : ''}`;
+  return fetchWrapper<ProvenanceVerificationResponse>(path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+  });
+}
+
 /**
  * Get workflow VC chain for a specific workflow
  */
 export async function getWorkflowVCChain(workflowId: string): Promise<WorkflowVCChainResponse> {
   return fetchWrapper<WorkflowVCChainResponse>(`/workflows/${workflowId}/vc-chain`);
+}
+
+/**
+ * Same JSON shape as GET /api/ui/v1/workflows/:id/vc-chain — valid input for `af verify <file.json>`
+ * (legacy WorkflowVCChainResponse; CLI normalizes to EnhancedVCChain).
+ */
+export async function downloadWorkflowVCAuditFile(
+  workflowId: string,
+  filename?: string,
+): Promise<void> {
+  const chain = await getWorkflowVCChain(workflowId);
+  const blob = new Blob([JSON.stringify(chain, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download =
+    filename ?? `workflow-${workflowId.replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 48)}-vc-audit.json`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 /**

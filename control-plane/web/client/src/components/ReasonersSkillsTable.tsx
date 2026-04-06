@@ -13,10 +13,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Function,
-  Tools,
   Copy,
   Identification,
+  ReasonerIcon,
+  SkillIcon,
 } from "@/components/ui/icon-bridge";
 import { cn } from "@/lib/utils";
 import type { ReasonerDefinition, SkillDefinition } from "@/types/agentfield";
@@ -146,13 +146,13 @@ export function ReasonersSkillsTable({
   const getTypeIcon = (type: "reasoner" | "skill" | "agent") => {
     switch (type) {
       case "reasoner":
-        return <Function className="w-4 h-4 text-accent-primary" />;
+        return <ReasonerIcon className="w-4 h-4 text-accent-primary" />;
       case "skill":
-        return <Tools className="w-4 h-4 text-accent-secondary" />;
+        return <SkillIcon className="w-4 h-4 text-accent-secondary" />;
       case "agent":
         return <Identification className="w-4 h-4 text-blue-500" />;
       default:
-        return <Function className="w-4 h-4 text-accent-primary" />;
+        return <ReasonerIcon className="w-4 h-4 text-accent-primary" />;
     }
   };
 
@@ -175,15 +175,16 @@ export function ReasonersSkillsTable({
       <Card className={cn("w-full", className)}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Function className="w-5 h-5 text-muted-foreground" />
+            <ReasonerIcon className="h-5 w-5 text-muted-foreground" />
+            <SkillIcon className="h-5 w-5 text-muted-foreground" />
             Reasoners & Skills
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8 text-muted-foreground">
             <div className="flex items-center justify-center gap-2 mb-2">
-              <Function className="w-8 h-8 opacity-50" />
-              <Tools className="w-8 h-8 opacity-50" />
+              <ReasonerIcon className="h-8 w-8 opacity-50" />
+              <SkillIcon className="h-8 w-8 opacity-50" />
             </div>
             <p className="text-sm">No reasoners or skills available</p>
           </div>
@@ -197,7 +198,8 @@ export function ReasonersSkillsTable({
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Function className="w-5 h-5 text-muted-foreground" />
+            <ReasonerIcon className="h-5 w-5 text-muted-foreground" />
+            <SkillIcon className="h-5 w-5 text-muted-foreground" />
             Reasoners & Skills
             <Badge variant="outline" className="ml-2 text-xs">
               {filteredItems.length}
@@ -214,7 +216,7 @@ export function ReasonersSkillsTable({
               clearButtonAriaLabel="Clear reasoner and skill search"
             />
             {copyFeedback && (
-              <div className="text-sm text-status-success bg-status-success-bg border border-status-success-border rounded-md px-3 py-1">
+              <div className="text-sm text-status-success bg-status-success/10 border border-status-success/30 rounded-md px-3 py-1">
                 {copyFeedback}
               </div>
             )}
@@ -224,7 +226,7 @@ export function ReasonersSkillsTable({
       <CardContent>
         <Table>
           <TableHeader>
-            <TableRow className="border-border-secondary">
+            <TableRow className="border-border">
               <TableHead className="w-12">Type</TableHead>
               <TableHead>Name</TableHead>
               <TableHead>DID</TableHead>
@@ -237,7 +239,7 @@ export function ReasonersSkillsTable({
               <TableRow
                 key={`${item.type}-${item.id}`}
                 className={cn(
-                  "border-border-secondary hover:bg-bg-hover transition-colors duration-150",
+                  "border-border hover:bg-accent transition-colors duration-150",
                   item.type === "reasoner" && nodeId && "cursor-pointer"
                 )}
                 onClick={(event) => handleRowClick(item, event)}
@@ -251,7 +253,7 @@ export function ReasonersSkillsTable({
 
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-text-primary">
+                    <span className="font-medium text-foreground">
                       {item.name}
                     </span>
                     <Badge
@@ -288,14 +290,14 @@ export function ReasonersSkillsTable({
                       </Button>
                     </div>
                   ) : (
-                    <span className="text-text-quaternary text-xs">No DID</span>
+                    <span className="text-muted-foreground text-xs">No DID</span>
                   )}
                 </TableCell>
 
                 <TableCell>
                   <div className="flex items-center gap-1.5">
                     {getStatusDot(item.status)}
-                    <span className="text-body capitalize">
+                    <span className="text-sm capitalize">
                       {item.status}
                     </span>
                   </div>
@@ -306,14 +308,14 @@ export function ReasonersSkillsTable({
                     {item.exposure_level && (
                       <Badge
                         variant="outline"
-                        className="text-xs bg-card text-text-tertiary border-border-secondary"
+                        className="text-xs bg-card text-muted-foreground border-border"
                       >
                         {item.exposure_level}
                       </Badge>
                     )}
 
                     {item.memory_retention && (
-                      <div className="text-xs text-text-tertiary">
+                      <div className="text-xs text-muted-foreground">
                         Memory: {item.memory_retention}
                       </div>
                     )}
@@ -324,7 +326,7 @@ export function ReasonersSkillsTable({
                           <Badge
                             key={index}
                             variant="outline"
-                            className="text-xs bg-card text-text-tertiary border-border-secondary"
+                            className="text-xs bg-card text-muted-foreground border-border"
                           >
                             {capability}
                           </Badge>
@@ -332,7 +334,7 @@ export function ReasonersSkillsTable({
                         {item.capabilities.length > 2 && (
                           <Badge
                             variant="outline"
-                            className="text-xs bg-card text-text-quaternary border-border-secondary"
+                            className="text-xs bg-card text-muted-foreground border-border"
                           >
                             +{item.capabilities.length - 2}
                           </Badge>
@@ -346,7 +348,7 @@ export function ReasonersSkillsTable({
                           <Badge
                             key={index}
                             variant="outline"
-                            className="text-xs bg-card text-text-tertiary border-border-secondary"
+                            className="text-xs bg-card text-muted-foreground border-border"
                           >
                             #{tag}
                           </Badge>
@@ -354,7 +356,7 @@ export function ReasonersSkillsTable({
                         {item.tags.length > 2 && (
                           <Badge
                             variant="outline"
-                            className="text-xs bg-card text-text-quaternary border-border-secondary"
+                            className="text-xs bg-card text-muted-foreground border-border"
                           >
                             +{item.tags.length - 2}
                           </Badge>

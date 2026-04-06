@@ -152,6 +152,9 @@ type StorageProvider interface {
 	// The ctx scopes the query, executionID selects the execution, and afterSeq and limit page results.
 	// Returns matching workflow events or an error if the query fails.
 	ListWorkflowExecutionEvents(ctx context.Context, executionID string, afterSeq *int64, limit int) ([]*types.WorkflowExecutionEvent, error)
+	StoreExecutionLogEntry(ctx context.Context, entry *types.ExecutionLogEntry) error
+	ListExecutionLogEntries(ctx context.Context, executionID string, afterSeq *int64, limit int, levels []string, nodeIDs []string, sources []string, query string) ([]*types.ExecutionLogEntry, error)
+	PruneExecutionLogEntries(ctx context.Context, executionID string, maxEntries int, olderThan time.Time) error
 
 	// Execution cleanup operations
 	// CleanupOldExecutions deletes execution data older than the retention period.
@@ -429,6 +432,7 @@ type StorageProvider interface {
 	// This method takes no parameters and exposes the shared workflow execution event bus.
 	// Returns the workflow execution event bus pointer.
 	GetWorkflowExecutionEventBus() *events.EventBus[*types.WorkflowExecutionEvent]
+	GetExecutionLogEventBus() *events.EventBus[*types.ExecutionLogEntry]
 
 	// DID Registry operations
 	// StoreDID persists DID registry data for a decentralized identifier.

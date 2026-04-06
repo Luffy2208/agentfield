@@ -358,3 +358,76 @@ export interface AuditTrailEntry {
   output_hash: string;
   signature: string;
 }
+
+/** Response from POST /did/verify-audit (matches cli.VCVerificationResult JSON). */
+export interface ProvenanceVerificationSummary {
+  total_components: number;
+  valid_components: number;
+  total_dids: number;
+  resolved_dids: number;
+  total_signatures: number;
+  valid_signatures: number;
+}
+
+export interface ProvenanceVerificationStep {
+  step: number;
+  description: string;
+  success: boolean;
+  details?: string;
+  error?: string;
+}
+
+export interface ProvenanceDIDResolution {
+  did: string;
+  method: string;
+  resolved_from: string;
+  success: boolean;
+  error?: string;
+  web_url?: string;
+}
+
+export interface ProvenanceComponentVerification {
+  vc_id: string;
+  execution_id: string;
+  issuer_did: string;
+  valid: boolean;
+  signature_valid: boolean;
+  format_valid: boolean;
+  status: string;
+  duration_ms?: number;
+  timestamp?: string;
+  error?: string;
+}
+
+export interface WorkflowVCVerification {
+  workflow_id: string;
+  valid: boolean;
+  signature_valid: boolean;
+  component_consistency: boolean;
+  timestamp_consistency: boolean;
+  status_consistency: boolean;
+  chain_integrity: boolean;
+  issues: VerificationIssue[];
+}
+
+/** Extended comprehensive block returned with verify-audit (CLI shape). */
+export interface ProvenanceComprehensiveResult extends ComprehensiveVCVerificationResult {
+  component_results?: ProvenanceComponentVerification[];
+  workflow_verification?: WorkflowVCVerification;
+}
+
+export interface ProvenanceVerificationResponse {
+  valid: boolean;
+  type: string;
+  workflow_id?: string;
+  signature_valid: boolean;
+  format_valid: boolean;
+  message: string;
+  error?: string;
+  verified_at: string;
+  component_results?: ProvenanceComponentVerification[];
+  did_resolutions?: ProvenanceDIDResolution[];
+  verification_steps?: ProvenanceVerificationStep[];
+  summary: ProvenanceVerificationSummary;
+  comprehensive?: ProvenanceComprehensiveResult;
+}

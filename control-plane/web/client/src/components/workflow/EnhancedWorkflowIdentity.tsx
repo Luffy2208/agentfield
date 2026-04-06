@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge, StatusBadge } from "../ui/badge";
 import { Separator } from "../ui/separator";
 import { CopyButton } from "../ui/copy-button";
+import { JsonHighlightedPre } from "../ui/json-syntax-highlight";
 import { cn } from "../../lib/utils";
 import {
   getStatusLabel,
@@ -295,7 +296,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                   className="rounded-xl border border-border bg-card/80 p-4 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 text-body font-medium text-text-primary">
+                    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                       <span className="rounded-md bg-muted p-1.5">
                         <Icon className="h-4 w-4" />
                       </span>
@@ -310,10 +311,10 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                       {item.badgeLabel}
                     </StatusBadge>
                   </div>
-                  <div className="mt-4 text-heading-1">
+                  <div className="mt-4 text-2xl font-semibold tracking-tight">
                     {item.value}
                   </div>
-                  <p className="mt-1 text-body-small">{item.hint}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{item.hint}</p>
                 </div>
               );
             })}
@@ -328,11 +329,11 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                     Digital Identity
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4 text-body">
+                <CardContent className="space-y-4 text-sm">
                   <div>
-                    <span className="text-caption">Workflow ID</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Workflow ID</span>
                     <div className="mt-1 flex items-center gap-2">
-                      <code className="rounded bg-muted/40 px-2 py-1 font-mono text-body-small text-foreground">
+                      <code className="rounded bg-muted/40 px-2 py-1 font-mono text-sm text-muted-foreground text-foreground">
                         {workflow.workflow_id}
                       </code>
                       <CopyButton
@@ -346,9 +347,9 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
 
                   {workflow.session_id && (
                     <div>
-                      <span className="text-caption">Session ID</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Session ID</span>
                       <div className="mt-1 flex items-center gap-2">
-                        <code className="rounded bg-muted/40 px-2 py-1 font-mono text-body-small text-foreground">
+                        <code className="rounded bg-muted/40 px-2 py-1 font-mono text-sm text-muted-foreground text-foreground">
                           {workflow.session_id}
                         </code>
                         <CopyButton
@@ -363,9 +364,9 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
 
                   {vcChain?.workflow_vc?.workflow_vc_id && (
                     <div>
-                      <span className="text-caption">Workflow Credential</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Workflow Credential</span>
                       <div className="mt-1 flex items-center gap-2">
-                        <code className="rounded bg-muted/40 px-2 py-1 font-mono text-body-small text-foreground">
+                        <code className="rounded bg-muted/40 px-2 py-1 font-mono text-sm text-muted-foreground text-foreground">
                           {vcChain.workflow_vc.workflow_vc_id}
                         </code>
                         <CopyButton
@@ -379,8 +380,8 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                   )}
 
                   <div>
-                    <span className="text-caption">Agent</span>
-                    <div className="mt-1 flex items-center gap-2 text-body text-text-primary">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Agent</span>
+                    <div className="mt-1 flex items-center gap-2 text-sm text-foreground">
                       <User className="h-4 w-4 text-muted-foreground" />
                       <span>{workflow.agent_name || "Unknown agent"}</span>
                     </div>
@@ -389,7 +390,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                   <Separator />
 
                   <div className="space-y-2">
-                    <span className="text-caption">Trust bundle</span>
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Trust bundle</span>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
@@ -420,7 +421,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                         CSV
                       </Button>
                     </div>
-                    <p className="text-body-small">
+                    <p className="text-sm text-muted-foreground">
                       Export the complete credential set for independent verification.
                     </p>
                   </div>
@@ -446,31 +447,31 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                     preset="halves"
                     gap="sm"
                     align="start"
-                    className="text-body"
+                    className="text-sm"
                   >
                     <div className="grid gap-1">
-                      <span className="text-caption">Status</span>
-                      <span className="text-body font-medium text-text-primary">{workflowCredentialLabel}</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Status</span>
+                      <span className="text-sm font-medium text-foreground">{workflowCredentialLabel}</span>
                     </div>
                     <div className="grid gap-1">
-                      <span className="text-caption">Issued</span>
-                      <span className="text-body">{formatDateTime(vcChain?.workflow_vc?.start_time)}</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Issued</span>
+                      <span className="text-sm">{formatDateTime(vcChain?.workflow_vc?.start_time)}</span>
                     </div>
                     <div className="grid gap-1">
-                      <span className="text-caption">Session</span>
-                      <span className="text-body">{workflow.session_id || "—"}</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Session</span>
+                      <span className="text-sm">{workflow.session_id || "—"}</span>
                     </div>
                     <div className="grid gap-1">
-                      <span className="text-caption">Total steps</span>
-                      <span className="text-body">{vcChain?.total_steps ?? componentVCs.length}</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total steps</span>
+                      <span className="text-sm">{vcChain?.total_steps ?? componentVCs.length}</span>
                     </div>
                     <div className="grid gap-1">
-                      <span className="text-caption">Verified steps</span>
-                      <span className="text-body">{verifiedVCs.length}</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Verified steps</span>
+                      <span className="text-sm">{verifiedVCs.length}</span>
                     </div>
                     <div className="grid gap-1">
-                      <span className="text-caption">Failures</span>
-                      <span className="text-body">{failedVCs.length}</span>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Failures</span>
+                      <span className="text-sm">{failedVCs.length}</span>
                     </div>
                   </ResponsiveGrid>
                 </CardContent>
@@ -487,7 +488,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   {componentVCInfos.length === 0 ? (
-                    <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-body-small">
+                    <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
                       No credentialed executions available to assemble a workflow path yet.
                     </div>
                   ) : (
@@ -508,7 +509,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                                 Step {index + 1}
                               </Badge>
                               <span>Execution {vc.execution_id.slice(0, 8)}…</span>
-                              <span className="text-body-small">{formatDateTime(timestamp)}</span>
+                              <span className="text-sm text-muted-foreground">{formatDateTime(timestamp)}</span>
                             </div>
                             <StatusBadge status={statusVariant} size="sm">
                               {statusLabel}
@@ -537,7 +538,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                                 )}
                               </div>
                               {credentialSubject?.caller?.agentNodeDid && (
-                                <p className="mt-1 text-body-small">
+                                <p className="mt-1 text-sm text-muted-foreground">
                                   Agent node: {credentialSubject.caller.agentNodeDid}
                                 </p>
                               )}
@@ -558,7 +559,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                                 )}
                               </div>
                               {credentialSubject?.target?.agentNodeDid && (
-                                <p className="mt-1 text-body-small">
+                                <p className="mt-1 text-sm text-muted-foreground">
                                   Agent node: {credentialSubject.target.agentNodeDid}
                                 </p>
                               )}
@@ -569,10 +570,10 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                             </div>
                             <div>
                               <span className="text-xs uppercase tracking-wide text-muted-foreground">Input → Output</span>
-                              <p className="mt-1 font-mono text-body-small break-all">
+                              <p className="mt-1 font-mono text-sm text-muted-foreground break-all">
                                 {vc.input_hash || "—"}
                               </p>
-                              <p className="mt-1 font-mono text-body-small break-all">
+                              <p className="mt-1 font-mono text-sm text-muted-foreground break-all">
                                 {vc.output_hash || "—"}
                               </p>
                             </div>
@@ -595,7 +596,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
             </CardHeader>
             <CardContent className="space-y-4">
               {componentVCs.length === 0 && (
-                <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-body-small">
+                <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
                   No verifiable credentials have been issued for individual executions yet.
                 </div>
               )}
@@ -637,7 +638,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                           <div className="text-sm font-semibold text-foreground">
                             Execution {vc.execution_id.slice(0, 8)}…
                           </div>
-                          <div className="text-body-small">
+                          <div className="text-sm text-muted-foreground">
                             Issued {formatDateTime(timestamp)}
                           </div>
                         </div>
@@ -676,7 +677,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                               )}
                             </div>
                             {callerAgent && (
-                              <p className="mt-1 text-body-small">Agent node: {callerAgent}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">Agent node: {callerAgent}</p>
                             )}
                           </div>
                           <div>
@@ -693,7 +694,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                               )}
                             </div>
                             {targetAgent && (
-                              <p className="mt-1 text-body-small">Agent node: {targetAgent}</p>
+                              <p className="mt-1 text-sm text-muted-foreground">Agent node: {targetAgent}</p>
                             )}
                           </div>
                           <div>
@@ -739,7 +740,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                           <div>
                             <span className="text-xs uppercase tracking-wide text-muted-foreground">Input Hash</span>
                             <div className="mt-1 flex items-center gap-2">
-                              <p className="font-mono text-body-small break-all">{inputHash || "—"}</p>
+                              <p className="font-mono text-sm text-muted-foreground break-all">{inputHash || "—"}</p>
                               {inputHash && (
                                 <CopyButton
                                   value={inputHash}
@@ -753,7 +754,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                           <div>
                             <span className="text-xs uppercase tracking-wide text-muted-foreground">Output Hash</span>
                             <div className="mt-1 flex items-center gap-2">
-                              <p className="font-mono text-body-small break-all">{outputHash || "—"}</p>
+                              <p className="font-mono text-sm text-muted-foreground break-all">{outputHash || "—"}</p>
                               {outputHash && (
                                 <CopyButton
                                   value={outputHash}
@@ -801,9 +802,10 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
 
                         {documentPreview && (
                           <div className="mt-4 max-h-64 overflow-auto rounded-lg bg-background p-3 text-xs">
-                            <pre className="font-mono text-muted-foreground whitespace-pre-wrap">
-                              {documentPreview}
-                            </pre>
+                            <JsonHighlightedPre
+                              text={documentPreview}
+                              className="text-xs"
+                            />
                           </div>
                         )}
                       </div>
@@ -823,7 +825,7 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
             </CardHeader>
             <CardContent className="space-y-4 text-sm">
               {didEntries.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-body-small">
+                <div className="rounded-lg border border-dashed border-border bg-muted/10 p-6 text-center text-sm text-muted-foreground">
                   No decentralized identifier bundle has been attached to this workflow credential yet.
                 </div>
               ) : (
@@ -832,10 +834,10 @@ export function EnhancedWorkflowIdentity({ workflow, vcChain }: EnhancedWorkflow
                     <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                       <div className="space-y-1">
                         <p className="font-mono text-xs text-foreground break-all">{did}</p>
-                        <p className="text-body-small">
+                        <p className="text-sm text-muted-foreground">
                           Method: {entry?.method || "unknown"} • Resolved {formatRelativeTime(entry?.resolved_at)}
                         </p>
-                        <p className="text-body-small">
+                        <p className="text-sm text-muted-foreground">
                           Source: {entry?.resolved_from || "not provided"}
                         </p>
                       </div>

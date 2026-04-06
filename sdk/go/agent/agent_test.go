@@ -676,10 +676,90 @@ func TestExecutionContext_Empty(t *testing.T) {
 	assert.Equal(t, ExecutionContext{}, execCtx)
 }
 
+func TestExecutionLogger_EmitsAndPostsStructuredLog(t *testing.T) {
+	logCh := make(chan ExecutionLogEntry, 1)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/executions/exec-1/logs" {
+			assert.Equal(t, http.MethodPost, r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+			var entry ExecutionLogEntry
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&entry))
+			logCh <- entry
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	cfg := Config{
+		NodeID:        "node-1",
+		Version:       "1.0.0",
+		AgentFieldURL: server.URL,
+		Logger:        log.New(io.Discard, "", 0),
+	}
+
+	agent, err := New(cfg)
+	require.NoError(t, err)
+
+	ctx := contextWithExecution(context.Background(), ExecutionContext{
+		RunID:          "run-1",
+		ExecutionID:    "exec-1",
+		WorkflowID:     "wf-1",
+		RootWorkflowID: "root-wf-1",
+		ReasonerName:   "demo",
+		SessionID:      "session-1",
+		ActorID:        "actor-1",
+	})
+
+	stdout, _, err := captureOutput(t, func() error {
+		agent.ExecutionLogger(ctx).WithSource("sdk.user").Info("reasoner.custom", "custom log message", map[string]any{
+			"foo": "bar",
+		})
+		time.Sleep(50 * time.Millisecond)
+		return nil
+	})
+	require.NoError(t, err)
+
+	var entry ExecutionLogEntry
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(stdout)), &entry))
+	assert.Equal(t, "exec-1", entry.ExecutionID)
+	assert.Equal(t, "wf-1", entry.WorkflowID)
+	assert.Equal(t, "run-1", entry.RunID)
+	assert.Equal(t, "root-wf-1", entry.RootWorkflowID)
+	assert.Equal(t, "node-1", entry.AgentNodeID)
+	assert.Equal(t, "demo", entry.ReasonerID)
+	assert.Equal(t, "info", entry.Level)
+	assert.Equal(t, "sdk.user", entry.Source)
+	assert.Equal(t, "reasoner.custom", entry.EventType)
+	assert.Equal(t, "custom log message", entry.Message)
+	assert.False(t, entry.SystemGenerated)
+	assert.Equal(t, "bar", entry.Attributes["foo"])
+
+	select {
+	case posted := <-logCh:
+		assert.Equal(t, "exec-1", posted.ExecutionID)
+		assert.Equal(t, "reasoner.custom", posted.EventType)
+		assert.Equal(t, "sdk.user", posted.Source)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for execution log post")
+	}
+}
+
 func TestHandleReasonerAsyncPostsStatus(t *testing.T) {
 	callbackCh := make(chan map[string]any, 1)
 	callbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
+		if strings.Contains(r.URL.Path, "/logs") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if !strings.Contains(r.URL.Path, "/status") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		dec := json.NewDecoder(r.Body)
 		var payload map[string]any
 		if err := dec.Decode(&payload); err == nil {
@@ -828,6 +908,14 @@ func TestCallLocalEmitsEvents(t *testing.T) {
 	eventCh := make(chan types.WorkflowExecutionEvent, 4)
 	eventServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
+		if strings.Contains(r.URL.Path, "/logs") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if !strings.Contains(r.URL.Path, "/workflow/executions/events") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 		body, _ := io.ReadAll(r.Body)
 		var event types.WorkflowExecutionEvent
 		if err := json.Unmarshal(body, &event); err == nil {
@@ -894,6 +982,83 @@ func TestCallLocalEmitsEvents(t *testing.T) {
 
 	assert.True(t, statuses["running"])
 	assert.True(t, statuses["succeeded"])
+}
+
+func TestCallLocalEmitsStructuredExecutionLogs(t *testing.T) {
+	logCh := make(chan ExecutionLogEntry, 4)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.Path, "/logs"):
+			var entry ExecutionLogEntry
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&entry))
+			logCh <- entry
+			w.WriteHeader(http.StatusOK)
+		default:
+			w.WriteHeader(http.StatusOK)
+		}
+	}))
+	defer server.Close()
+
+	cfg := Config{
+		NodeID:        "node-1",
+		Version:       "1.0.0",
+		AgentFieldURL: server.URL,
+		Logger:        log.New(io.Discard, "", 0),
+	}
+
+	ag, err := New(cfg)
+	require.NoError(t, err)
+
+	ag.RegisterReasoner("child", func(ctx context.Context, input map[string]any) (any, error) {
+		return map[string]any{"echo": input["msg"]}, nil
+	})
+
+	parentCtx := contextWithExecution(context.Background(), ExecutionContext{
+		RunID:          "run-1",
+		ExecutionID:    "exec-parent",
+		WorkflowID:     "wf-1",
+		RootWorkflowID: "wf-1",
+		ReasonerName:   "parent",
+		AgentNodeID:    "node-1",
+	})
+
+	stdout, _, err := captureOutput(t, func() error {
+		_, err := ag.CallLocal(parentCtx, "child", map[string]any{"msg": "hi"})
+		time.Sleep(50 * time.Millisecond)
+		return err
+	})
+	require.NoError(t, err)
+
+	lines := strings.Split(strings.TrimSpace(stdout), "\n")
+	require.GreaterOrEqual(t, len(lines), 2)
+
+	var seenStart, seenComplete bool
+	for _, line := range lines {
+		var entry ExecutionLogEntry
+		require.NoError(t, json.Unmarshal([]byte(line), &entry))
+		if entry.ReasonerID != "child" {
+			continue
+		}
+		assert.Equal(t, "sdk.runtime", entry.Source)
+		if entry.EventType == "call.local.start" {
+			seenStart = true
+		}
+		if entry.EventType == "call.local.complete" {
+			seenComplete = true
+		}
+	}
+
+	assert.True(t, seenStart)
+	assert.True(t, seenComplete)
+
+	select {
+	case first := <-logCh:
+		assert.Equal(t, "child", first.ReasonerID)
+		assert.NotEmpty(t, first.ExecutionID)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for structured execution logs")
+	}
 }
 
 func TestCallLocalUnknownReasoner(t *testing.T) {

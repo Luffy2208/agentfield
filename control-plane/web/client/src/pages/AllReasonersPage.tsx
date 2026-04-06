@@ -13,20 +13,29 @@ import {
   Wifi,
   WifiOff,
 } from "@/components/ui/icon-bridge";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { CompactReasonersStats } from "../components/reasoners/CompactReasonersStats";
 import { PageHeader } from "../components/PageHeader";
 import { EmptyReasonersState } from "../components/reasoners/EmptyReasonersState";
 import { ReasonerGrid } from "../components/reasoners/ReasonerGrid";
 import { SearchFilters } from "../components/reasoners/SearchFilters";
-import { useNodeEventsSSE, useUnifiedStatusSSE } from "../hooks/useSSE";
+import { useSSESync } from "../hooks/useSSEQuerySync";
 import { reasonersApi, ReasonersApiError } from "../services/reasonersApi";
 import type {
   ReasonerFilters,
   ReasonersResponse,
   ReasonerWithNode,
 } from "../types/reasoners";
+
+const EMPTY_REASONERS: ReasonersResponse = {
+  reasoners: [],
+  total: 0,
+  online_count: 0,
+  offline_count: 0,
+  nodes_count: 0,
+};
 
 type ViewMode = "grid" | "table";
 const VIEW_OPTIONS: ReadonlyArray<SegmentedControlOption> = [
@@ -36,163 +45,63 @@ const VIEW_OPTIONS: ReadonlyArray<SegmentedControlOption> = [
 
 export function AllReasonersPage() {
   const navigate = useNavigate();
-  const [data, setData] = useState<ReasonersResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { nodeConnected, reasonerConnected } = useSSESync();
+  const reasonersLive = nodeConnected && reasonerConnected;
   const [filters, setFilters] = useState<ReasonerFilters>({
-    status: "online", // Default to online instead of all
+    status: "online",
     limit: 50,
     offset: 0,
   });
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
-  const [sseConnected, setSseConnected] = useState(false);
-  const [sseError, setSseError] = useState<string | null>(null);
-  const eventSourceRef = useRef<EventSource | null>(null);
 
-  // Add unified status SSE for enhanced status updates
-  const nodeEventsSSE = useNodeEventsSSE();
-  const { latestEvent: nodeEvent } = nodeEventsSSE;
-
-  const unifiedStatusSSE = useUnifiedStatusSSE();
-  const { latestEvent: unifiedStatusEvent } = unifiedStatusSSE;
-
-  const fetchReasoners = useCallback(
-    async (currentFilters: ReasonerFilters) => {
+  const reasonersQuery = useQuery({
+    queryKey: [
+      "reasoners",
+      filters.status,
+      filters.limit,
+      filters.offset,
+      filters.search ?? "",
+    ],
+    queryFn: async (): Promise<ReasonersResponse> => {
       try {
-        setLoading(true);
-        setError(null);
-        const response = await reasonersApi.getAllReasoners(currentFilters);
-        setData(response);
-        setLastRefresh(new Date());
+        return await reasonersApi.getAllReasoners(filters);
       } catch (err) {
-        console.error("❌ fetchReasoners failed:", err);
-        if (err instanceof ReasonersApiError) {
-          // Handle specific cases where filtering returns empty results
-          if (
-            err.status === 404 ||
-            (err.message && err.message.includes("no reasoners found"))
-          ) {
-            // Set empty data instead of error for empty filter results
-            setData({
-              reasoners: [],
-              total: 0,
-              online_count: 0,
-              offline_count: 0,
-              nodes_count: 0,
-            });
-            setError(null);
-          } else {
-            setError(err.message);
-          }
-        } else {
-          setError("An unexpected error occurred while fetching reasoners");
+        if (
+          err instanceof ReasonersApiError &&
+          (err.status === 404 ||
+            (err.message && err.message.includes("no reasoners found")))
+        ) {
+          return { ...EMPTY_REASONERS };
         }
-        console.error("Failed to fetch reasoners:", err);
-      } finally {
-        setLoading(false);
+        throw err;
       }
     },
-    [] // No dependencies needed
+    placeholderData: keepPreviousData,
+    refetchInterval: reasonersLive ? false : 6_000,
+  });
+
+  const {
+    data,
+    isPending,
+    isFetching,
+    isError,
+    error: queryError,
+    refetch,
+    dataUpdatedAt,
+  } = reasonersQuery;
+
+  const errorMessage =
+    isError && queryError instanceof Error
+      ? queryError.message
+      : isError
+        ? "An unexpected error occurred while fetching reasoners"
+        : null;
+
+  const lastRefresh = useMemo(
+    () => (dataUpdatedAt > 0 ? new Date(dataUpdatedAt) : new Date()),
+    [dataUpdatedAt],
   );
 
-  // Handle filter changes - this will trigger data fetch
-  useEffect(() => {
-    fetchReasoners(filters);
-  }, [
-    filters.status,
-    filters.limit,
-    filters.offset,
-    filters.search,
-  ]); // Remove fetchReasoners from dependencies to prevent infinite loops
-
-  // SSE connection setup - for status monitoring only, no auto-refresh
-  useEffect(() => {
-    const setupSSE = () => {
-      try {
-        setSseError(null);
-
-        const eventSource = reasonersApi.createEventStream(
-          (event) => {
-            // Handle different event types
-            switch (event.type) {
-              case "connected":
-                setSseConnected(true);
-                break;
-              case "heartbeat":
-                // Keep connection alive, no action needed
-                break;
-              case "reasoner_online":
-              case "reasoner_offline":
-              case "reasoner_updated":
-              case "reasoner_status_changed":
-              case "node_status_changed":
-              case "reasoners_refresh":
-                break;
-              default:
-            }
-          },
-          (error) => {
-            console.error("❌ SSE Error occurred:", error);
-            setSseConnected(false);
-            setSseError(error.message);
-          },
-          () => {
-            setSseConnected(true);
-            setSseError(null);
-          }
-        );
-
-        eventSourceRef.current = eventSource;
-      } catch (error) {
-        console.error("❌ Failed to setup SSE:", error);
-        setSseError("Failed to establish real-time connection");
-      }
-    };
-
-    // Setup SSE connection
-    setupSSE();
-
-    // Cleanup on unmount
-    return () => {
-      if (eventSourceRef.current) {
-        reasonersApi.closeEventStream(eventSourceRef.current);
-        eventSourceRef.current = null;
-        setSseConnected(false);
-      }
-    };
-  }, []); // Only run once on mount
-
-  // Handle unified status events for node status changes
-  useEffect(() => {
-    if (!nodeEvent && !unifiedStatusEvent) return;
-
-    const event = unifiedStatusEvent || nodeEvent;
-    if (!event) return;
-
-    // Handle events that might affect reasoner status (since reasoners depend on nodes)
-    switch (event.type) {
-      case 'node_unified_status_changed':
-      case 'node_state_transition':
-      case 'node_status_updated':
-      case 'node_health_changed':
-      case 'node_online':
-      case 'node_offline':
-        // Note: We don't auto-refresh to prevent scroll jumping
-        // Users can manually refresh to see updated reasoner status
-        break;
-
-      case 'bulk_status_update':
-        // Could trigger a refresh if many nodes are affected
-        break;
-
-      default:
-        // Handle other events as needed
-        break;
-    }
-  }, [nodeEvent, unifiedStatusEvent]);
-
-  // Listen for custom event to clear filters from empty state
   useEffect(() => {
     const handleClearFilters = () => {
       setFilters({
@@ -208,17 +117,15 @@ export function AllReasonersPage() {
   }, []);
 
   const handleFiltersChange = (newFilters: ReasonerFilters) => {
-    setFilters({ ...newFilters, offset: 0 }); // Reset pagination when filters change
+    setFilters({ ...newFilters, offset: 0 });
   };
 
   const handleReasonerClick = (reasoner: ReasonerWithNode) => {
-    // Navigate to reasoner detail page using React Router
-    // reasoner_id already contains the full format: "node_id.reasoner_name"
     navigate(`/reasoners/${encodeURIComponent(reasoner.reasoner_id)}`);
   };
 
   const handleRefresh = () => {
-    fetchReasoners(filters);
+    void refetch();
   };
 
   const handleClearFilters = () => {
@@ -237,7 +144,6 @@ export function AllReasonersPage() {
     });
   };
 
-  // Determine empty state type
   const getEmptyStateType = () => {
     if (!data) return null;
 
@@ -254,14 +160,7 @@ export function AllReasonersPage() {
     return null;
   };
 
-  // Safe data with defaults
-  const safeData = data || {
-    reasoners: [],
-    total: 0,
-    online_count: 0,
-    offline_count: 0,
-    nodes_count: 0,
-  };
+  const safeData = data ?? EMPTY_REASONERS;
 
   return (
     <div className="space-y-8">
@@ -279,40 +178,38 @@ export function AllReasonersPage() {
               hideLabel
             />
             <Badge
-              variant={sseConnected ? "success" : "failed"}
+              variant={reasonersLive ? "success" : "failed"}
               size="sm"
               showIcon={false}
               className="flex items-center gap-1"
             >
-              {sseConnected ? <Wifi size={12} /> : <WifiOff size={12} />}
-              {sseConnected ? "Live Updates" : "Disconnected"}
+              {reasonersLive ? <Wifi size={12} /> : <WifiOff size={12} />}
+              {reasonersLive ? "Live Updates" : "Disconnected"}
             </Badge>
             <Button
               variant="outline"
               size="sm"
               onClick={handleRefresh}
-              disabled={loading}
+              disabled={isFetching}
               className="flex items-center gap-2"
             >
-              <Renew size={14} className={loading ? "animate-spin" : ""} />
+              <Renew size={14} className={isFetching ? "animate-spin" : ""} />
               Refresh
             </Button>
           </div>
         }
       />
 
-      {/* Compact Stats Summary - Always show with safe data */}
       <CompactReasonersStats
         total={safeData.total}
         onlineCount={safeData.online_count}
         offlineCount={safeData.offline_count}
         nodesCount={safeData.nodes_count}
         lastRefresh={lastRefresh}
-        loading={loading}
+        loading={isFetching}
         onRefresh={handleRefresh}
       />
 
-      {/* Search and Filters - Always show with safe data */}
       <SearchFilters
         filters={filters}
         onFiltersChange={handleFiltersChange}
@@ -321,33 +218,30 @@ export function AllReasonersPage() {
         offlineCount={safeData.offline_count}
       />
 
-      {/* Error Alert */}
-      {error && (
+      {errorMessage ? (
         <Alert variant="destructive">
           <Terminal className="h-4 w-4" />
           <AlertTitle>Connection Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>{errorMessage}</AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      {/* SSE Error Alert */}
-      {sseError && (
-        <Alert variant="destructive">
+      {!reasonersLive ? (
+        <Alert>
           <WifiOff className="h-4 w-4" />
-          <AlertTitle>Real-time Connection Error</AlertTitle>
+          <AlertTitle>Live updates unavailable</AlertTitle>
           <AlertDescription>
-            {sseError}. Data may not update automatically. Use the refresh
-            button to get the latest information.
+            One or more reasoner update streams are disconnected — this list
+            polls every 6s until both reconnect. Use Refresh for an immediate
+            pull.
           </AlertDescription>
         </Alert>
-      )}
+      ) : null}
 
-      {/* Content Area */}
       {(() => {
         const emptyStateType = getEmptyStateType();
 
-        if (loading && !data) {
-          // Initial loading state
+        if (isPending && !data) {
           return (
             <ReasonerGrid
               reasoners={[]}
@@ -359,7 +253,6 @@ export function AllReasonersPage() {
         }
 
         if (emptyStateType) {
-          // Show appropriate empty state
           return (
             <EmptyReasonersState
               type={emptyStateType}
@@ -367,24 +260,22 @@ export function AllReasonersPage() {
               onRefresh={handleRefresh}
               onClearFilters={handleClearFilters}
               onShowAll={handleShowAll}
-              loading={loading}
+              loading={isFetching}
             />
           );
         }
 
-        // Show reasoners grid/table
         return (
           <ReasonerGrid
             reasoners={safeData.reasoners}
-            loading={loading}
+            loading={isFetching}
             onReasonerClick={handleReasonerClick}
             viewMode={viewMode}
           />
         );
       })()}
 
-      {/* Load More Button (if needed for pagination) */}
-      {data && data.reasoners.length < data.total && (
+      {data && data.reasoners.length < data.total ? (
         <div className="flex justify-center mt-8">
           <Button
             variant="outline"
@@ -392,10 +283,10 @@ export function AllReasonersPage() {
               const newOffset = (filters.offset || 0) + (filters.limit || 50);
               setFilters({ ...filters, offset: newOffset });
             }}
-            disabled={loading}
+            disabled={isFetching}
             className="flex items-center gap-2"
           >
-            {loading ? (
+            {isFetching ? (
               <>
                 <Renew size={14} className="animate-spin" />
                 Loading...
@@ -420,14 +311,13 @@ export function AllReasonersPage() {
             )}
           </Button>
         </div>
-      )}
+      ) : null}
 
-      {/* Footer Info */}
-      {!loading && !error && data && data.reasoners.length > 0 && (
-        <div className="text-center text-body-small py-4">
+      {!isFetching && !errorMessage && data && data.reasoners.length > 0 ? (
+        <div className="text-center text-sm text-muted-foreground py-4">
           Last updated: {lastRefresh.toLocaleTimeString()}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

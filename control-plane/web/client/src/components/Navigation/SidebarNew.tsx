@@ -38,7 +38,7 @@ export function SidebarNew({ sections }: SidebarNewProps) {
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold tracking-tight">AgentField</span>
-                  <span className="truncate text-[10px] text-muted-foreground font-mono">v1.0.0</span>
+                  <span className="truncate text-micro text-muted-foreground font-mono">v1.0.0</span>
                 </div>
               </NavLink>
             </SidebarMenuButton>
@@ -52,7 +52,7 @@ export function SidebarNew({ sections }: SidebarNewProps) {
         {sections.map((section) => (
           <SidebarGroup key={section.id} className="space-y-0.5">
             {/* Apply caption styling for clear header differentiation */}
-            <SidebarGroupLabel className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground/70 px-2 mb-1">
+            <SidebarGroupLabel className="text-micro uppercase tracking-wider font-semibold text-muted-foreground/70 px-2 mb-1">
               {section.title}
             </SidebarGroupLabel>
             {/* Add gap after header */}

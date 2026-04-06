@@ -69,7 +69,7 @@ import type {
 } from "@/types/agentfield";
 import { useCallback, useEffect, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
-import { EnhancedNodeDetailHeader } from "@/components/nodes";
+import { EnhancedNodeDetailHeader, NodeProcessLogsPanel } from "@/components/nodes";
 import { getNodeStatusPresentation } from "@/utils/node-status";
 
 /**
@@ -224,6 +224,7 @@ function NodeDetailPageContent() {
         "tools",
         "performance",
         "configuration",
+        "logs",
       ].includes(hash)
     ) {
       setActiveTab(hash);
@@ -334,7 +335,7 @@ function NodeDetailPageContent() {
       // Refresh data to get updated status
       fetchData(false);
     } catch (error: any) {
-      let errorMessage = `Failed to start agent ${nodeId}`;
+      const errorMessage = `Failed to start agent ${nodeId}`;
 
       // Handle specific error cases with clever messaging
       if (error.message?.includes("already running")) {
@@ -344,10 +345,13 @@ function NodeDetailPageContent() {
       } else if (error.message?.includes("port")) {
         showError(`🔌 Port conflict detected - please try again`);
       } else {
-        showError(error.message || errorMessage);
+        showError(errorMessage, error.message);
       }
 
-      console.error(`Failed to start agent ${nodeId}:`, error);
+      console.error("Failed to start agent", {
+        nodeId,
+        error,
+      });
     } finally {
       setActionLoading(null);
     }
@@ -364,7 +368,7 @@ function NodeDetailPageContent() {
       // Refresh data to get updated status
       fetchData(false);
     } catch (error: any) {
-      let errorMessage = `Failed to stop agent ${nodeId}`;
+      const errorMessage = `Failed to stop agent ${nodeId}`;
 
       // Handle specific error cases with clever messaging
       if (error.message?.includes("not running")) {
@@ -372,10 +376,13 @@ function NodeDetailPageContent() {
       } else if (error.message?.includes("not installed")) {
         showError(`📦 Agent ${nodeId} is not installed`);
       } else {
-        showError(error.message || errorMessage);
+        showError(errorMessage, error.message);
       }
 
-      console.error(`Failed to stop agent ${nodeId}:`, error);
+      console.error("Failed to stop agent", {
+        nodeId,
+        error,
+      });
     } finally {
       setActionLoading(null);
     }
@@ -392,15 +399,18 @@ function NodeDetailPageContent() {
       // Refresh data to get updated status
       fetchData(false);
     } catch (error: any) {
-      let errorMessage = `Failed to reconcile agent ${nodeId}`;
+      const errorMessage = `Failed to reconcile agent ${nodeId}`;
 
       if (error.message?.includes("not installed")) {
         showError(`📦 Agent ${nodeId} is not installed`);
       } else {
-        showError(error.message || errorMessage);
+        showError(errorMessage, error.message);
       }
 
-      console.error(`Failed to reconcile agent ${nodeId}:`, error);
+      console.error("Failed to reconcile agent", {
+        nodeId,
+        error,
+      });
     } finally {
       setActionLoading(null);
     }
@@ -805,6 +815,9 @@ function NodeDetailPageContent() {
             <AnimatedTabsTrigger value="configuration" className="gap-2 px-4">
               Configuration
             </AnimatedTabsTrigger>
+            <AnimatedTabsTrigger value="logs" className="gap-2 px-4">
+              Logs
+            </AnimatedTabsTrigger>
           </AnimatedTabsList>
             {mobileStatusRefreshButton}
           </div>
@@ -926,7 +939,7 @@ function NodeDetailPageContent() {
                   <MCPServerList
                     servers={mcpServers}
                     nodeId={node.id}
-                    onServerAction={async (_action, _serverAlias) => {
+                    onServerAction={async (_action: string, _serverAlias: string) => {
                       setTimeout(() => fetchData(false), 1000);
                     }}
                   />
@@ -935,7 +948,7 @@ function NodeDetailPageContent() {
                   <MCPServerControls
                     servers={mcpServers}
                     nodeId={node.id}
-                    onBulkAction={async (_action, _serverAliases) => {
+                    onBulkAction={async (_action: string, _serverAliases: string[]) => {
                       setTimeout(() => fetchData(false), 1000);
                     }}
                   />
@@ -1048,6 +1061,17 @@ function NodeDetailPageContent() {
                   </AlertDescription>
                 </Alert>
               )}
+            </div>
+          </AnimatedTabsContent>
+
+          <AnimatedTabsContent
+            value="logs"
+            className="flex-1 overflow-y-auto"
+          >
+            <div className="flex flex-col gap-6 px-6 pb-6">
+              {nodeId ? (
+                <NodeProcessLogsPanel nodeId={nodeId} />
+              ) : null}
             </div>
           </AnimatedTabsContent>
         </AnimatedTabs>

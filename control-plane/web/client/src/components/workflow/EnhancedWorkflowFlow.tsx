@@ -137,7 +137,7 @@ export function EnhancedWorkflowFlow({
         <div className="text-center space-y-4">
           <GitBranch className="h-12 w-12 text-muted-foreground mx-auto" />
           <div>
-            <h3 className="text-heading-3 text-foreground">Unable to load workflow</h3>
+            <h3 className="text-base font-semibold text-foreground">Unable to load workflow</h3>
             <p className="text-muted-foreground">{error}</p>
           </div>
         </div>
@@ -178,7 +178,7 @@ export function EnhancedWorkflowFlow({
       {/* Status Indicators - Top Right */}
       {isRefreshing && hasDagContent && (
         <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-background/95 backdrop-blur-sm border border-border rounded-lg shadow-sm px-3 py-2">
-          <span className="flex items-center gap-2 text-body-small">
+          <span className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
             Updating
           </span>

@@ -393,7 +393,7 @@ export function EnhancedWorkflowEvents({
 
         {!loading && error && (
           <div className="h-full flex flex-col items-center justify-center text-center gap-4">
-            <p className="text-body-small">{error}</p>
+            <p className="text-sm text-muted-foreground">{error}</p>
             <Button onClick={handleRefresh} variant="outline">
               Retry
             </Button>
@@ -431,16 +431,16 @@ export function EnhancedWorkflowEvents({
                         <h3 className="text-sm font-semibold text-foreground">
                           {event.agent_name || event.reasoner_id || 'Workflow step'}
                         </h3>
-                        <Badge variant="outline" className="text-body-small uppercase tracking-wide">
+                        <Badge variant="outline" className="text-sm text-muted-foreground uppercase tracking-wide">
                           {statusLabel}
                         </Badge>
                         {isSelected && (
-                          <Badge variant="secondary" className="text-body-small uppercase tracking-wide">
+                          <Badge variant="secondary" className="text-sm text-muted-foreground uppercase tracking-wide">
                             Selected
                           </Badge>
                         )}
                       </div>
-                      <div className="flex flex-wrap items-center gap-3 text-body-small">
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                         <span className="inline-flex items-center gap-1">
                           <Clock className="w-3 h-3" />
                           {formatTimestamp(event.started_at)}
@@ -470,7 +470,7 @@ export function EnhancedWorkflowEvents({
 
                   <div className="mt-4 space-y-3">
                     {event.notes.length === 0 ? (
-                      <p className="text-body-small italic">
+                      <p className="text-sm text-muted-foreground italic">
                         No notes have been captured for this step yet.
                       </p>
                     ) : (
@@ -489,7 +489,7 @@ export function EnhancedWorkflowEvents({
                             <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
                               {displayMessage}
                             </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-body-small">
+                            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                               <span>{formatTimestamp(note.timestamp)}</span>
                               {note.tags.map((tag) => (
                                 <TagBadge

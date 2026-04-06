@@ -11,6 +11,7 @@ from agentfield.agent_utils import AgentUtils
 from agentfield.logger import log_debug, log_error, log_info, log_success, log_warn
 from agentfield.utils import get_free_port
 from fastapi import Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.routing import APIRoute
 
 
@@ -28,6 +29,58 @@ class AgentServer:
 
     def setup_agentfield_routes(self):
         """Setup standard routes that AgentField server expects"""
+        from agentfield.node_logs import install_stdio_tee
+
+        install_stdio_tee()
+
+        @self.agent.get("/agentfield/v1/logs")
+        async def agentfield_process_logs(request: Request):
+            """NDJSON tail/stream of captured stdout/stderr (control plane proxy)."""
+            from agentfield import node_logs
+
+            if not node_logs.logs_enabled():
+                return JSONResponse(
+                    status_code=404,
+                    content={"error": "logs_disabled", "message": "Process logs API is disabled"},
+                )
+            auth = request.headers.get("authorization") or request.headers.get(
+                "Authorization"
+            )
+            if not node_logs.verify_internal_bearer(auth):
+                return JSONResponse(
+                    status_code=401,
+                    content={"error": "unauthorized", "message": "Valid Authorization Bearer required"},
+                )
+            qp = request.query_params
+            try:
+                tail_lines = int(qp.get("tail_lines") or "0")
+            except ValueError:
+                tail_lines = 0
+            try:
+                since_seq = int(qp.get("since_seq") or "0")
+            except ValueError:
+                since_seq = 0
+            follow = (qp.get("follow") or "").lower() in ("1", "true", "yes")
+            max_tail = int(os.getenv("AGENTFIELD_LOG_MAX_TAIL_LINES", "50000"))
+            if tail_lines > max_tail:
+                return JSONResponse(
+                    status_code=413,
+                    content={
+                        "error": "tail_too_large",
+                        "message": f"tail_lines exceeds max {max_tail}",
+                    },
+                )
+            if tail_lines <= 0 and since_seq <= 0 and not follow:
+                tail_lines = 200
+            gen = node_logs.iter_tail_ndjson(tail_lines, since_seq, follow)
+            return StreamingResponse(
+                gen,
+                media_type="application/x-ndjson",
+                headers={
+                    "Cache-Control": "no-store",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
 
         @self.agent.get("/health")
         async def health():

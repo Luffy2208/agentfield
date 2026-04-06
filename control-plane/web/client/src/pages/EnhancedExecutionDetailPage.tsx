@@ -187,12 +187,12 @@ export function EnhancedExecutionDetailPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
-          <h2 className="text-heading-2">
+          <h2 className="text-xl font-semibold">
             {error || "Execution not found"}
           </h2>
           <button
             onClick={() => navigate("/executions")}
-            className="text-body-small text-muted-foreground hover:text-foreground underline"
+            className="text-sm text-muted-foreground text-muted-foreground hover:text-foreground underline"
           >
             ← Back to executions
           </button>
@@ -337,7 +337,7 @@ export function EnhancedExecutionDetailPage() {
                   icon={Cog}
                   defaultOpen={true}
                   badge={
-                    <span className="text-body-small bg-muted/50 px-2 py-0.5 rounded">
+                    <span className="text-sm text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
                       Metadata
                     </span>
                   }
@@ -420,7 +420,7 @@ export function EnhancedExecutionDetailPage() {
                         <div className="space-y-2">
                           {execution.input_uri && (
                             <div>
-                              <label className="text-body-small">Input URI</label>
+                              <label className="text-sm text-muted-foreground">Input URI</label>
                               <p className="font-mono text-xs text-foreground break-all">
                                 {execution.input_uri}
                               </p>
@@ -428,7 +428,7 @@ export function EnhancedExecutionDetailPage() {
                           )}
                           {execution.result_uri && (
                             <div>
-                              <label className="text-body-small">Result URI</label>
+                              <label className="text-sm text-muted-foreground">Result URI</label>
                               <p className="font-mono text-xs text-foreground break-all">
                                 {execution.result_uri}
                               </p>

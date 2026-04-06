@@ -10,7 +10,7 @@ import {
   WarningDiamond,
   Question,
 } from "@/components/ui/icon-bridge"
-import type { IconComponent, IconWeight } from "@/components/ui/icon-bridge"
+import type { IconComponent } from "@/components/ui/icon-bridge"
 
 const badgeVariants = cva(
   "inline-flex items-center gap-1.5 rounded-md border border-transparent px-2 py-0.5 text-xs font-medium transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
@@ -18,9 +18,9 @@ const badgeVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-bg-secondary text-text-primary border border-border-secondary hover:bg-bg-tertiary shadow-sm",
+          "bg-muted text-foreground border border-border hover:bg-muted shadow-sm",
         secondary:
-          "bg-bg-tertiary text-text-secondary border border-border-tertiary hover:bg-bg-secondary shadow-sm",
+          "bg-muted text-muted-foreground border border-border/50 hover:bg-muted shadow-sm",
         destructive:
           cn(
             statusTone.error.bg,
@@ -29,15 +29,15 @@ const badgeVariants = cva(
             "shadow-sm"
           ),
         outline:
-          "text-text-primary border border-border bg-transparent hover:bg-bg-hover shadow-sm",
+          "text-foreground border border-border bg-transparent hover:bg-accent shadow-sm",
         metadata:
-          "rounded-md bg-muted/40 text-text-secondary border border-border/60 px-1.5 py-0.5 text-[10px] font-medium font-mono",
+          "rounded-md bg-muted/40 text-muted-foreground border border-border/60 px-1.5 py-0.5 text-micro font-medium font-mono",
         count:
-          "rounded-full bg-bg-secondary text-text-primary border border-border-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+          "rounded-full bg-muted text-foreground border border-border px-2 py-0.5 text-micro font-semibold uppercase tracking-wide",
         pill:
-          "rounded-full bg-muted/30 text-text-primary border border-border/40 px-2.5 py-0.5 text-[11px]",
+          "rounded-full bg-muted/30 text-foreground border border-border/40 px-2.5 py-0.5 text-micro-plus",
 
-        // Tooltip variant – glass-style chip optimized for dark tooltip backgrounds
+        // Tooltip variant – -style chip optimized for dark tooltip backgrounds
         tooltip:
           "bg-white/15 text-primary-foreground border border-white/20 rounded-md",
 
@@ -58,7 +58,7 @@ const badgeVariants = cva(
           cn(getStatusBadgeClasses("neutral" satisfies StatusTone), "font-mono tracking-tight"),
       },
       size: {
-        sm: "px-1.5 py-0 text-[10px]",
+        sm: "px-1.5 py-0 text-micro",
         md: "px-2 py-0.5 text-xs",
         lg: "px-3 py-1 text-sm",
       },
@@ -79,15 +79,14 @@ export interface BadgeProps
   showIcon?: boolean;
 }
 
-// Temporary icon mapping (to be replaced with phosphor icons)
-const statusIcons: Partial<Record<BadgeVariant, { icon: IconComponent; weight?: IconWeight }>> = {
-  success: { icon: CheckCircle, weight: "bold" },
-  failed: { icon: XCircle, weight: "bold" },
-  running: { icon: SpinnerGap, weight: "bold" },
-  pending: { icon: Clock, weight: "bold" },
-  degraded: { icon: WarningDiamond, weight: "bold" },
-  unknown: { icon: Question, weight: "bold" },
-  destructive: { icon: XCircle, weight: "bold" },
+const statusIcons: Partial<Record<BadgeVariant, { icon: IconComponent }>> = {
+  success: { icon: CheckCircle },
+  failed: { icon: XCircle },
+  running: { icon: SpinnerGap },
+  pending: { icon: Clock },
+  degraded: { icon: WarningDiamond },
+  unknown: { icon: Question },
+  destructive: { icon: XCircle },
 };
 
 function Badge({ className, variant, size, icon, showIcon = true, children, ...props }: BadgeProps) {
@@ -111,7 +110,6 @@ function Badge({ className, variant, size, icon, showIcon = true, children, ...p
       {icon || (StatusIconComponent && (
         <StatusIconComponent
           size={12}
-          weight={statusIconEntry?.weight}
           className={cn(
             "flex-shrink-0",
             iconTone ? statusTone[iconTone].accent : undefined

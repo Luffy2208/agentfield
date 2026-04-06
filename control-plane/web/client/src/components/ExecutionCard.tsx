@@ -63,10 +63,10 @@ export function ExecutionCard({ execution, onViewDetails, compact = false }: Exe
           </StatusBadge>
           <div className="flex flex-col">
             <span className="font-medium text-sm">{execution.workflow_name || execution.workflow_id}</span>
-            <span className="text-body-small">{execution.reasoner_id}</span>
+            <span className="text-sm text-muted-foreground">{execution.reasoner_id}</span>
           </div>
         </div>
-        <div className="flex items-center space-x-4 text-body-small">
+        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
           <span>{formatDuration(execution.duration_ms)}</span>
           <span>{formatTimestamp(execution.started_at || execution.created_at || '')}</span>
           {onViewDetails && (
@@ -108,7 +108,7 @@ export function ExecutionCard({ execution, onViewDetails, compact = false }: Exe
               </div>
             )}
           </div>
-          <div className="text-right text-body-small">
+          <div className="text-right text-sm text-muted-foreground">
             <div>{formatTimestamp(execution.started_at || execution.created_at || '')}</div>
             {execution.completed_at && (
               <div className="text-xs">
@@ -120,10 +120,10 @@ export function ExecutionCard({ execution, onViewDetails, compact = false }: Exe
 
         <div className="space-y-3">
           <div>
-            <h3 className="text-heading-3 mb-1">
+            <h3 className="text-base font-semibold mb-1">
               {execution.workflow_name || execution.workflow_id}
             </h3>
-            <p className="text-body-small">
+            <p className="text-sm text-muted-foreground">
               Execution ID: <span className="font-mono">{execution.execution_id}</span>
             </p>
           </div>

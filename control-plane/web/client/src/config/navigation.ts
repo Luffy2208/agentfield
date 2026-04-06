@@ -1,103 +1,70 @@
-import type { NavigationSection } from '@/components/Navigation/types';
+import {
+  LayoutDashboard,
+  Play,
+  Server,
+  FlaskConical,
+  Settings,
+  KeyRound,
+  FileCheck2,
+  BookOpen,
+  Github,
+  type LucideIcon,
+} from "lucide-react";
 
-export const navigationSections: NavigationSection[] = [
+export type ResourceLinkItem = {
+  title: string;
+  icon: LucideIcon;
+  href: string;
+};
+
+export const navigation = [
   {
-    id: 'overview',
-    title: 'Overview',
-    items: [
-      {
-        id: 'dashboard',
-        label: 'Dashboard',
-        href: '/dashboard',
-        icon: 'dashboard',
-        description: 'Real-time system overview and operational metrics'
-      }
-    ]
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    path: "/dashboard",
   },
   {
-    id: 'agent-hub',
-    title: 'Agent Hub',
-    items: [
-      {
-        id: 'node-overview',
-        label: 'Agent Node',
-        href: '/nodes',
-        icon: 'data-center',
-        description: 'Node infrastructure and status'
-      },
-      {
-        id: 'all-reasoners',
-        label: 'Reasoners',
-        href: '/reasoners/all',
-        icon: 'function',
-        description: 'Browse and manage all reasoners'
-      }
-    ]
+    title: "Runs",
+    icon: Play,
+    path: "/runs",
   },
   {
-    id: 'executions',
-    title: 'Executions',
-    items: [
-      {
-        id: 'individual-executions',
-        label: 'Individual Executions',
-        href: '/executions',
-        icon: 'run',
-        description: 'Single agent executions and calls'
-      },
-      {
-        id: 'workflow-executions',
-        label: 'Workflow Executions',
-        href: '/workflows',
-        icon: 'flow-data',
-        description: 'Multi-step workflow processes'
-      }
-    ]
+    title: "Agent nodes",
+    icon: Server,
+    path: "/agents",
   },
   {
-    id: 'identity-trust',
-    title: 'Identity & Trust',
-    items: [
-      {
-        id: 'did-explorer',
-        label: 'DID Explorer',
-        href: '/identity/dids',
-        icon: 'identification',
-        description: 'Explore decentralized identifiers for agents and reasoners'
-      },
-      {
-        id: 'credentials',
-        label: 'Credentials',
-        href: '/identity/credentials',
-        icon: 'shield-check',
-        description: 'View and verify execution credentials'
-      }
-    ]
+    title: "Playground",
+    icon: FlaskConical,
+    path: "/playground",
   },
   {
-    id: 'authorization',
-    title: 'Authorization',
-    items: [
-      {
-        id: 'authorization',
-        label: 'Authorization',
-        href: '/authorization',
-        icon: 'shield-check',
-        description: 'Manage access policies and agent tag approvals'
-      }
-    ]
+    title: "Access management",
+    icon: KeyRound,
+    path: "/access",
   },
   {
-    id: 'settings',
-    title: 'Settings',
-    items: [
-      {
-        id: 'observability-webhook',
-        label: 'Observability Webhook',
-        href: '/settings/observability-webhook',
-        icon: 'settings',
-        description: 'Configure external event forwarding'
-      }
-    ]
-  }
+    title: "Audit",
+    icon: FileCheck2,
+    path: "/verify",
+  },
+  {
+    title: "Settings",
+    icon: Settings,
+    path: "/settings",
+  },
+];
+
+/** External links shown below Platform nav (opens in new tab). */
+export const resourceLinks: ResourceLinkItem[] = [
+  {
+    title: "Docs",
+    icon: BookOpen,
+    href: "https://agentfield.ai/docs",
+  },
+  {
+    title: "GitHub",
+    icon: Github,
+    href: "https://github.com/Agent-Field/agentfield/",
+  },
 ];

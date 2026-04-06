@@ -9,20 +9,15 @@ import { Card, CardContent } from "../components/ui/card";
 import { Skeleton } from "../components/ui/skeleton";
 import { WorkflowDAGViewer } from "../components/WorkflowDAGViewer";
 import { WorkflowTimeline } from "../components/workflow/WorkflowTimeline";
-import { SimpleWorkflowVC } from "../components/vc";
 import { getWorkflowRunSummary } from "../services/workflowsApi";
-import { getWorkflowVCChain } from "../services/vcApi";
 import { useWorkflowDAGSmart } from "../hooks/useWorkflowDAG";
 import type { WorkflowSummary } from "../types/workflows";
-import type { WorkflowVCChainResponse } from "../types/did";
 
 export function WorkflowDetailPage() {
   const { workflowId: runId } = useParams<{ workflowId: string }>();
   const navigate = useNavigate();
   const [workflow, setWorkflow] = useState<WorkflowSummary | null>(null);
-  const [vcChain, setVcChain] = useState<WorkflowVCChainResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [vcLoading, setVcLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Timeline UI state - lifted up to prevent reset on data refresh
@@ -73,25 +68,6 @@ export function WorkflowDetailPage() {
     fetchWorkflow();
   }, [runId, navigate]);
 
-  // Fetch VC chain
-  useEffect(() => {
-    if (!workflow?.workflow_id) return;
-
-    const fetchVCChain = async () => {
-      try {
-        setVcLoading(true);
-        const vcData = await getWorkflowVCChain(workflow.workflow_id);
-        setVcChain(vcData);
-      } catch (err) {
-        console.error('Failed to fetch VC chain:', err);
-        setVcChain(null);
-      } finally {
-        setVcLoading(false);
-      }
-    };
-
-    fetchVCChain();
-  }, [workflow?.workflow_id]);
 
 
   // Keyboard support for Escape key
@@ -198,13 +174,6 @@ export function WorkflowDetailPage() {
         </div>
       )}
 
-      {/* Workflow VC Chain */}
-      <SimpleWorkflowVC
-        workflowId={workflow.workflow_id}
-        vcChain={vcChain || undefined}
-        loading={vcLoading}
-      />
-
       {/* Compact Input/Output Display */}
       <CompactWorkflowInputOutput dagData={dagData} />
 
@@ -303,7 +272,7 @@ function WorkflowDetailSkeleton() {
               <div className="h-[800px] bg-muted/20 flex items-center justify-center">
                 <div className="text-center space-y-4">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                  <div className="text-body-small">
+                  <div className="text-sm text-muted-foreground">
                     Loading workflow DAG...
                   </div>
                 </div>

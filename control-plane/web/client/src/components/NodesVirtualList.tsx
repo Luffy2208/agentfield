@@ -13,7 +13,7 @@ import {
 import type { AgentNodeSummary } from '../types/agentfield';
 import { NodeCard } from './NodeCard';
 import type { DensityMode } from './DensityToggle';
-import { getStatusPriority } from './ui/status-indicator';
+import { getLifecycleStatusPriority as getStatusPriority } from '@/components/status/UnifiedStatusIndicator';
 import { getNodeStatusPresentation } from "@/utils/node-status";
 import { cn } from "@/lib/utils";
 import { cardVariants } from "@/components/ui/card";
@@ -241,7 +241,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
                 </h3>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-body-small font-medium",
+                    "rounded-full px-2 py-0.5 text-sm text-muted-foreground font-medium",
                     readyPresentation.theme.pillClass
                   )}
                 >
@@ -284,7 +284,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
                 </h3>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-body-small font-medium",
+                    "rounded-full px-2 py-0.5 text-sm text-muted-foreground font-medium",
                     stalePresentation.theme.pillClass
                   )}
                 >
@@ -315,7 +315,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
                 </h3>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-body-small font-medium",
+                    "rounded-full px-2 py-0.5 text-sm text-muted-foreground font-medium",
                     veryStalePresentation.theme.pillClass
                   )}
                 >
@@ -343,7 +343,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
                 </h3>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-body-small font-medium",
+                    "rounded-full px-2 py-0.5 text-sm text-muted-foreground font-medium",
                     degradedPresentation.theme.pillClass
                   )}
                 >
@@ -379,7 +379,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
                 </h3>
                 <span
                   className={cn(
-                    "rounded-full px-2 py-0.5 text-body-small font-medium",
+                    "rounded-full px-2 py-0.5 text-sm text-muted-foreground font-medium",
                     startingPresentation.theme.pillClass
                   )}
                 >
@@ -413,7 +413,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
                       </span>
                       <span
                         className={cn(
-                          "rounded-full px-2 py-0.5 text-body-small font-medium",
+                          "rounded-full px-2 py-0.5 text-sm text-muted-foreground font-medium",
                           offlinePresentation.theme.pillClass
                         )}
                       >
@@ -457,7 +457,7 @@ export function NodesVirtualList({ nodes, searchQuery, isLoading, density = 'com
           <div className="mx-auto w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
             <div className="w-6 h-6 rounded-full bg-muted-foreground/20" />
           </div>
-          <h3 className="text-heading-3 mb-2">No Nodes Found</h3>
+          <h3 className="text-base font-semibold mb-2">No Nodes Found</h3>
           <p className="text-muted-foreground">
             Try adjusting your search query or check if nodes are properly registered.
           </p>

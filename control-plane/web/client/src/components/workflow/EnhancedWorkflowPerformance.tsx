@@ -179,14 +179,14 @@ export function EnhancedWorkflowPerformance({
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between gap-4 p-4 border-b border-border">
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="text-body-small">
+          <Badge variant="secondary" className="text-sm text-muted-foreground">
             {timedNodes.length} timed steps
           </Badge>
-          <Badge variant="outline" className="text-body-small">
+          <Badge variant="outline" className="text-sm text-muted-foreground">
             Throughput {throughputPerMinute.toFixed(1)} / min
           </Badge>
         </div>
-        <div className="flex items-center gap-2 text-body-small">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <span>Avg {formatDuration(metrics.averageDuration)}</span>
           <span>Median {formatDuration(metrics.medianDuration)}</span>
           <span>P95 {formatDuration(metrics.p95Duration)}</span>
@@ -205,35 +205,35 @@ export function EnhancedWorkflowPerformance({
               <>
                 <ResponsiveGrid columns={{ base: 1, md: 2, lg: 4 }} gap="md" align="start">
                   <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                    <div className="text-caption">Total Duration</div>
-                    <div className="mt-2 text-heading-2">{formatDuration(metrics.totalDuration)}</div>
-                    <div className="mt-1 text-body-small">Across {timedNodes.length} measured steps</div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Duration</div>
+                    <div className="mt-2 text-xl font-semibold">{formatDuration(metrics.totalDuration)}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">Across {timedNodes.length} measured steps</div>
                   </div>
                   <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                    <div className="text-caption">Success Rate</div>
-                    <div className="mt-2 text-heading-2">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Success Rate</div>
+                    <div className="mt-2 text-xl font-semibold">
                       {statusSummary.total
                         ? Math.round(((statusSummary.byStatus['succeeded'] || 0) / statusSummary.total) * 100)
                         : 0}%
                     </div>
-                    <div className="mt-1 text-body-small">{statusSummary.total} total executions</div>
+                    <div className="mt-1 text-sm text-muted-foreground">{statusSummary.total} total executions</div>
                   </div>
                   <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                    <div className="text-caption">Fastest Step</div>
-                    <div className="mt-2 text-heading-2">{formatDuration(Math.min(...metrics.durations))}</div>
-                    <div className="mt-1 text-body-small">Slowest {formatDuration(metrics.maxDuration)}</div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Fastest Step</div>
+                    <div className="mt-2 text-xl font-semibold">{formatDuration(Math.min(...metrics.durations))}</div>
+                    <div className="mt-1 text-sm text-muted-foreground">Slowest {formatDuration(metrics.maxDuration)}</div>
                   </div>
                   <div className="rounded-xl border border-border/60 bg-muted/20 p-4">
-                    <div className="text-caption">Throughput</div>
-                    <div className="mt-2 text-heading-2">{throughputPerMinute.toFixed(1)} / min</div>
-                    <div className="mt-1 text-body-small">Span {metrics.spanMs > 0 ? formatDuration(metrics.spanMs) : '—'}</div>
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Throughput</div>
+                    <div className="mt-2 text-xl font-semibold">{throughputPerMinute.toFixed(1)} / min</div>
+                    <div className="mt-1 text-sm text-muted-foreground">Span {metrics.spanMs > 0 ? formatDuration(metrics.spanMs) : '—'}</div>
                   </div>
                 </ResponsiveGrid>
 
                 {statusSummary.total > 0 && (
-                  <div className="flex flex-wrap items-center gap-2 text-body-small">
+                  <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                     {Object.entries(statusSummary.byStatus).map(([status, count]) => (
-                      <Badge key={status} variant="outline" className="text-body-small">
+                      <Badge key={status} variant="outline" className="text-sm text-muted-foreground">
                         {getStatusLabel(status)} · {count}
                       </Badge>
                     ))}
@@ -243,10 +243,10 @@ export function EnhancedWorkflowPerformance({
                 {/* Primary Visualization: Scatter Plot */}
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-heading-3 flex items-center gap-2">
+                    <h3 className="text-base font-semibold flex items-center gap-2">
                       <GaugeCircle className="w-4 h-4" /> Execution Velocity & Health
                     </h3>
-                    <span className="text-body-small">Individual executions over time</span>
+                    <span className="text-sm text-muted-foreground">Individual executions over time</span>
                   </div>
                   <ExecutionScatterPlot
                     timedNodes={timedNodes}
@@ -257,17 +257,17 @@ export function EnhancedWorkflowPerformance({
                 {/* Secondary Visualization: Agent Heatmap */}
                 <div className="space-y-4 pt-4 border-t border-border/50">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-heading-3 flex items-center gap-2">
+                    <h3 className="text-base font-semibold flex items-center gap-2">
                        <Activity className="w-4 h-4" /> Agent Health Map
                     </h3>
-                    <span className="text-body-small">Failure patterns by agent</span>
+                    <span className="text-sm text-muted-foreground">Failure patterns by agent</span>
                   </div>
                   <AgentHealthHeatmap timedNodes={timedNodes} />
                 </div>
 
                 {bottlenecks.length > 0 && (
                   <div className="space-y-3 pt-4 border-t border-border/50">
-                    <div className="flex items-center gap-2 text-heading-3">
+                    <div className="flex items-center gap-2 text-base font-semibold">
                       <Timer className="w-4 h-4" /> Top bottlenecks
                     </div>
                     <div className="space-y-3">
@@ -279,12 +279,12 @@ export function EnhancedWorkflowPerformance({
                           <div key={node.execution_id} className="rounded-lg border border-border/60 bg-muted/15 p-3">
                             <div className="flex items-center justify-between text-sm">
                               <div className="flex items-center gap-2">
-                                <Badge variant="destructive" className="text-body-small">#{index + 1}</Badge>
+                                <Badge variant="destructive" className="text-sm text-muted-foreground">#{index + 1}</Badge>
                                 <span className="font-medium text-foreground">
                                   {node.agent_name || node.reasoner_id || 'Workflow step'}
                                 </span>
                               </div>
-                              <div className="text-right text-body-small">
+                              <div className="text-right text-sm text-muted-foreground">
                                 <div className="font-mono text-sm text-foreground">{formatDuration(duration)}</div>
                                 <div>{share}% of total runtime</div>
                               </div>
@@ -295,7 +295,7 @@ export function EnhancedWorkflowPerformance({
                                 style={{ width: `${width}%` }}
                               />
                             </div>
-                            <div className="mt-3 flex items-center justify-between text-body-small">
+                            <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
                               <span>{formatTimestamp(node.started_at)}</span>
                               <Button
                                 variant="outline"
@@ -324,14 +324,14 @@ export function EnhancedWorkflowPerformance({
                             <span>{agent.name}</span>
                             <span>{agent.count} steps</span>
                           </div>
-                          <div className="text-body-small">Total {formatDuration(agent.totalDuration)}</div>
+                          <div className="text-sm text-muted-foreground">Total {formatDuration(agent.totalDuration)}</div>
                           <div className="h-2 rounded-full bg-muted overflow-hidden">
                             <div
                               className="h-2 rounded-full bg-primary"
                               style={{ width: `${Math.min(100, (agent.totalDuration / totalTimedDuration) * 100)}%` }}
                             />
                           </div>
-                          <div className="flex items-center justify-between text-body-small">
+                          <div className="flex items-center justify-between text-sm text-muted-foreground">
                             <span>Avg {formatDuration(agent.averageDuration)}</span>
                             <span>Max {formatDuration(agent.maxDuration)}</span>
                           </div>
@@ -361,20 +361,20 @@ export function EnhancedWorkflowPerformance({
                     <div className="text-sm font-semibold text-foreground pt-4">Selected nodes Analysis</div>
                     <ResponsiveGrid columns={{ base: 1, md: 2, lg: 4 }} gap="sm" align="start">
                       <div className="rounded-lg border border-border bg-background p-3">
-                        <div className="text-body-small">Selected</div>
-                        <div className="text-heading-3 text-foreground">{selectedMetrics.count}</div>
+                        <div className="text-sm text-muted-foreground">Selected</div>
+                        <div className="text-base font-semibold text-foreground">{selectedMetrics.count}</div>
                       </div>
                       <div className="rounded-lg border border-border bg-background p-3">
-                        <div className="text-body-small">Measured</div>
-                        <div className="text-heading-3 text-foreground">{selectedMetrics.timedCount}</div>
+                        <div className="text-sm text-muted-foreground">Measured</div>
+                        <div className="text-base font-semibold text-foreground">{selectedMetrics.timedCount}</div>
                       </div>
                       <div className="rounded-lg border border-border bg-background p-3">
-                        <div className="text-body-small">Avg duration</div>
-                        <div className="text-heading-3 text-foreground">{formatDuration(selectedMetrics.averageDuration)}</div>
+                        <div className="text-sm text-muted-foreground">Avg duration</div>
+                        <div className="text-base font-semibold text-foreground">{formatDuration(selectedMetrics.averageDuration)}</div>
                       </div>
                       <div className="rounded-lg border border-border bg-background p-3">
-                        <div className="text-body-small">Succeeded</div>
-                        <div className="text-heading-3 text-foreground">{selectedMetrics.successCount}</div>
+                        <div className="text-sm text-muted-foreground">Succeeded</div>
+                        <div className="text-base font-semibold text-foreground">{selectedMetrics.successCount}</div>
                       </div>
                     </ResponsiveGrid>
                   </div>
@@ -386,8 +386,8 @@ export function EnhancedWorkflowPerformance({
                   <Zap className="h-10 w-10 text-muted-foreground" />
                 </div>
                 <div>
-                  <h3 className="text-heading-3 text-foreground">No performance data yet</h3>
-                  <p className="text-body-small">Metrics will appear once workflow steps record execution durations.</p>
+                  <h3 className="text-base font-semibold text-foreground">No performance data yet</h3>
+                  <p className="text-sm text-muted-foreground">Metrics will appear once workflow steps record execution durations.</p>
                 </div>
               </div>
             )}

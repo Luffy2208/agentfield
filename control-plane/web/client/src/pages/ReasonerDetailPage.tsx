@@ -11,7 +11,6 @@ import {
 } from "../components/ui/icon-bridge";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { DIDIdentityBadge } from "../components/did/DIDDisplay";
 import { Badge } from "../components/ui/badge";
 import { ExecutionForm, type ExecutionFormData } from "../components/reasoners/ExecutionForm";
 import { ExecutionHistoryList } from "../components/reasoners/ExecutionHistoryList";
@@ -22,7 +21,8 @@ import {
 } from "../components/reasoners/ExecutionQueue";
 import { FormattedOutput } from "../components/reasoners/FormattedOutput";
 import { PerformanceChart } from "../components/reasoners/PerformanceChart";
-import { StatusIndicator } from "../components/reasoners/StatusIndicator";
+import { ReasonerStatusDot as StatusIndicator } from "../components/reasoners/ReasonerStatusDot";
+import { JsonHighlightedPre } from "../components/ui/json-syntax-highlight";
 import { Alert } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
 import {
@@ -189,7 +189,7 @@ export function ReasonerDetailPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="flex flex-col items-center gap-3">
           <InProgress className="h-8 w-8 animate-spin text-muted-foreground" />
-          <p className="text-body-small">
+          <p className="text-sm text-muted-foreground">
             Loading reasoner details...
           </p>
         </div>
@@ -221,10 +221,10 @@ export function ReasonerDetailPage() {
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-display">
+            <h2 className="text-3xl font-bold tracking-tight">
               {reasoner.name}
             </h2>
-            <p className="text-body">
+            <p className="text-sm">
               {reasoner.description || "No description available"}
             </p>
           </div>
@@ -249,12 +249,10 @@ export function ReasonerDetailPage() {
             </Button>
           </div>
         </div>
-        <div className="flex items-center gap-4 text-body">
+        <div className="flex items-center gap-4 text-sm">
           <span>Node: {reasoner.node_id}</span>
           <span>•</span>
           <span>ID: {fullReasonerId}</span>
-          <span>•</span>
-          <DIDIdentityBadge nodeId={reasoner.node_id} showDID={true} />
         </div>
         {reasoner.tags && reasoner.tags.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
@@ -274,45 +272,45 @@ export function ReasonerDetailPage() {
       {/* Quick Stats */}
       {metrics && (
         <ResponsiveGrid preset="quarters" gap="md" align="start">
-          <Card className="card-elevated">
+          <Card className="bg-card border border-border rounded-lg shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Time className="h-4 w-4 text-text-tertiary" />
-                <span className="text-caption">Avg Response</span>
+                <Time className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Response</span>
               </div>
-              <p className="text-heading-3">{metrics.avg_response_time_ms}ms</p>
+              <p className="text-base font-semibold">{metrics.avg_response_time_ms}ms</p>
             </CardContent>
           </Card>
 
-          <Card className="card-elevated">
+          <Card className="bg-card border border-border rounded-lg shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <CheckmarkFilled className="h-4 w-4 text-status-success" />
-                <span className="text-caption">Success Rate</span>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Success Rate</span>
               </div>
-              <p className="text-heading-3">
+              <p className="text-base font-semibold">
                 {(metrics.success_rate * 100).toFixed(1)}%
               </p>
             </CardContent>
           </Card>
 
-          <Card className="card-elevated">
+          <Card className="bg-card border border-border rounded-lg shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Analytics className="h-4 w-4 text-text-tertiary" />
-                <span className="text-caption">Total Executions</span>
+                <Analytics className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Executions</span>
               </div>
-              <p className="text-heading-3">{metrics.total_executions}</p>
+              <p className="text-base font-semibold">{metrics.total_executions}</p>
             </CardContent>
           </Card>
 
-          <Card className="card-elevated">
+          <Card className="bg-card border border-border rounded-lg shadow-sm">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Activity className="h-4 w-4 text-text-tertiary" />
-                <span className="text-caption">Last 24h</span>
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Last 24h</span>
               </div>
-              <p className="text-heading-3">{metrics.executions_last_24h}</p>
+              <p className="text-base font-semibold">{metrics.executions_last_24h}</p>
             </CardContent>
           </Card>
         </ResponsiveGrid>
@@ -323,7 +321,7 @@ export function ReasonerDetailPage() {
         {/* Left Panel - Input & Configuration */}
         <div className="lg:col-span-5 space-y-6">
           {/* Input Form */}
-          <Card className="card-elevated">
+          <Card className="bg-card border border-border rounded-lg shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Play className="h-5 w-5" />
@@ -370,7 +368,7 @@ export function ReasonerDetailPage() {
             </TabsList>
 
             <TabsContent value="input">
-              <Card className="card-elevated">
+              <Card className="bg-card border border-border rounded-lg shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-sm">Input Schema</CardTitle>
                   <CardDescription>
@@ -379,11 +377,12 @@ export function ReasonerDetailPage() {
                 </CardHeader>
                 <CardContent>
                   {reasoner.input_schema ? (
-                    <pre className="bg-bg-secondary p-4 rounded-lg text-sm overflow-auto scrollbar-thin border border-border-secondary">
-                      {JSON.stringify(reasoner.input_schema, null, 2)}
-                    </pre>
+                    <JsonHighlightedPre
+                      data={reasoner.input_schema}
+                      className="rounded-lg border border-border bg-muted p-4 text-sm scrollbar-thin overflow-auto"
+                    />
                   ) : (
-                    <p className="text-text-tertiary">
+                    <p className="text-muted-foreground">
                       No input schema available
                     </p>
                   )}
@@ -392,7 +391,7 @@ export function ReasonerDetailPage() {
             </TabsContent>
 
             <TabsContent value="output">
-              <Card className="card-elevated">
+              <Card className="bg-card border border-border rounded-lg shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-sm">Output Schema</CardTitle>
                   <CardDescription>
@@ -401,11 +400,12 @@ export function ReasonerDetailPage() {
                 </CardHeader>
                 <CardContent>
                   {reasoner.output_schema ? (
-                    <pre className="bg-bg-secondary p-4 rounded-lg text-sm overflow-auto scrollbar-thin border border-border-secondary">
-                      {JSON.stringify(reasoner.output_schema, null, 2)}
-                    </pre>
+                    <JsonHighlightedPre
+                      data={reasoner.output_schema}
+                      className="rounded-lg border border-border bg-muted p-4 text-sm scrollbar-thin overflow-auto"
+                    />
                   ) : (
-                    <p className="text-text-tertiary">
+                    <p className="text-muted-foreground">
                       No output schema available
                     </p>
                   )}
@@ -427,7 +427,7 @@ export function ReasonerDetailPage() {
 
           {/* Selected Execution Result */}
           {selectedExecution && (
-            <Card className="card-elevated">
+            <Card className="bg-card border border-border rounded-lg shadow-sm">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -466,18 +466,18 @@ export function ReasonerDetailPage() {
                   />
                 ) : selectedExecution.status === "failed" ? (
                   <div className="text-center py-8">
-                    <div className="h-8 w-8 mx-auto mb-3 rounded-full bg-status-error-bg flex items-center justify-center">
+                    <div className="h-8 w-8 mx-auto mb-3 rounded-full bg-status-error/10 flex items-center justify-center">
                       <div className="h-4 w-4 rounded-full bg-status-error" />
                     </div>
                     <p className="text-status-error font-medium mb-1">
                       Execution Failed
                     </p>
-                    <p className="text-body-small">{selectedExecution.error}</p>
+                    <p className="text-sm text-muted-foreground">{selectedExecution.error}</p>
                   </div>
                 ) : (
                   <div className="flex items-center justify-center py-8">
-                    <InProgress className="h-6 w-6 animate-spin text-text-tertiary mr-3" />
-                    <span className="text-text-secondary">Executing...</span>
+                    <InProgress className="h-6 w-6 animate-spin text-muted-foreground mr-3" />
+                    <span className="text-muted-foreground">Executing...</span>
                   </div>
                 )}
               </CardContent>
@@ -502,7 +502,7 @@ export function ReasonerDetailPage() {
             </TabsList>
 
             <TabsContent value="activity">
-              <Card className="card-elevated">
+              <Card className="bg-card border border-border rounded-lg shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5" />
@@ -524,7 +524,7 @@ export function ReasonerDetailPage() {
             </TabsContent>
 
             <TabsContent value="performance">
-              <Card className="card-elevated">
+              <Card className="bg-card border border-border rounded-lg shadow-sm">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Analytics className="h-5 w-5" />

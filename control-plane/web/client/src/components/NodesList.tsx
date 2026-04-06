@@ -94,7 +94,7 @@ const NodesList: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <h3 className="text-heading-3">
+          <h3 className="text-base font-semibold">
             Registered Nodes ({totalCount})
           </h3>
           <Badge variant={connectionStatus === 'connected' ? 'default' : 'destructive'}>

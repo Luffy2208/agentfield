@@ -62,7 +62,7 @@ export function NodesStatusSummary({
           <span>{summary.total} node{summary.total === 1 ? "" : "s"}</span>
         </div>
         {searchQuery && (
-          <span className="text-body-small">
+          <span className="text-sm text-muted-foreground">
             Showing {summary.total} result{summary.total === 1 ? "" : "s"} for&nbsp;
             <span className="font-medium text-foreground">"{searchQuery}"</span>
           </span>
@@ -82,7 +82,7 @@ export function NodesStatusSummary({
             <span className={cn("font-medium", item.presentation.theme.textClass)}>
               {item.count}
             </span>
-            <span className="text-body-small">{item.label}</span>
+            <span className="text-sm text-muted-foreground">{item.label}</span>
           </div>
         ))}
       </div>

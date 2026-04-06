@@ -39,6 +39,64 @@ type AgentFieldConfig struct {
 	ExecutionCleanup ExecutionCleanupConfig `yaml:"execution_cleanup" mapstructure:"execution_cleanup"`
 	ExecutionQueue   ExecutionQueueConfig   `yaml:"execution_queue" mapstructure:"execution_queue"`
 	Approval         ApprovalConfig         `yaml:"approval" mapstructure:"approval"`
+	NodeLogProxy     NodeLogProxyConfig     `yaml:"node_log_proxy" mapstructure:"node_log_proxy"`
+	ExecutionLogs    ExecutionLogsConfig    `yaml:"execution_logs" mapstructure:"execution_logs"`
+}
+
+// NodeLogProxyConfig limits the control plane proxy to agent process logs (NDJSON).
+type NodeLogProxyConfig struct {
+	ConnectTimeout      time.Duration `yaml:"connect_timeout" mapstructure:"connect_timeout"`
+	StreamIdleTimeout   time.Duration `yaml:"stream_idle_timeout" mapstructure:"stream_idle_timeout"`
+	MaxStreamDuration   time.Duration `yaml:"max_stream_duration" mapstructure:"max_stream_duration"`
+	MaxTailLines        int           `yaml:"max_tail_lines" mapstructure:"max_tail_lines"`
+}
+
+// EffectiveNodeLogProxy returns proxy settings with defaults for zero values.
+func EffectiveNodeLogProxy(c NodeLogProxyConfig) NodeLogProxyConfig {
+	out := c
+	if out.ConnectTimeout <= 0 {
+		out.ConnectTimeout = 5 * time.Second
+	}
+	if out.StreamIdleTimeout <= 0 {
+		out.StreamIdleTimeout = 60 * time.Second
+	}
+	if out.MaxStreamDuration <= 0 {
+		out.MaxStreamDuration = 15 * time.Minute
+	}
+	if out.MaxTailLines <= 0 {
+		out.MaxTailLines = 10000
+	}
+	return out
+}
+
+// ExecutionLogsConfig governs structured execution-correlated logs stored by the control plane.
+type ExecutionLogsConfig struct {
+	RetentionPeriod      time.Duration `yaml:"retention_period" mapstructure:"retention_period"`
+	MaxEntriesPerExecution int         `yaml:"max_entries_per_execution" mapstructure:"max_entries_per_execution"`
+	MaxTailEntries       int           `yaml:"max_tail_entries" mapstructure:"max_tail_entries"`
+	StreamIdleTimeout    time.Duration `yaml:"stream_idle_timeout" mapstructure:"stream_idle_timeout"`
+	MaxStreamDuration    time.Duration `yaml:"max_stream_duration" mapstructure:"max_stream_duration"`
+}
+
+// EffectiveExecutionLogs returns execution-log settings with defaults for zero values.
+func EffectiveExecutionLogs(c ExecutionLogsConfig) ExecutionLogsConfig {
+	out := c
+	if out.RetentionPeriod <= 0 {
+		out.RetentionPeriod = 24 * time.Hour
+	}
+	if out.MaxEntriesPerExecution <= 0 {
+		out.MaxEntriesPerExecution = 5000
+	}
+	if out.MaxTailEntries <= 0 {
+		out.MaxTailEntries = 1000
+	}
+	if out.StreamIdleTimeout <= 0 {
+		out.StreamIdleTimeout = 60 * time.Second
+	}
+	if out.MaxStreamDuration <= 0 {
+		out.MaxStreamDuration = 15 * time.Minute
+	}
+	return out
 }
 
 // ApprovalConfig holds configuration for the execution approval workflow.
@@ -390,6 +448,55 @@ func ApplyEnvOverrides(cfg *Config) {
 	}
 	if val := os.Getenv("AGENTFIELD_AUTHORIZATION_INTERNAL_TOKEN"); val != "" {
 		cfg.Features.DID.Authorization.InternalToken = val
+	}
+
+	// Node log proxy (UI → agent NDJSON)
+	if val := os.Getenv("AGENTFIELD_NODE_LOG_PROXY_CONNECT_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			cfg.AgentField.NodeLogProxy.ConnectTimeout = d
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_NODE_LOG_PROXY_STREAM_IDLE_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			cfg.AgentField.NodeLogProxy.StreamIdleTimeout = d
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_NODE_LOG_PROXY_MAX_DURATION"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			cfg.AgentField.NodeLogProxy.MaxStreamDuration = d
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_NODE_LOG_MAX_TAIL_LINES"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			cfg.AgentField.NodeLogProxy.MaxTailLines = i
+		}
+	}
+
+	// Structured execution log storage and streaming
+	if val := os.Getenv("AGENTFIELD_EXECUTION_LOG_RETENTION_PERIOD"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			cfg.AgentField.ExecutionLogs.RetentionPeriod = d
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_EXECUTION_LOG_MAX_ENTRIES_PER_EXECUTION"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			cfg.AgentField.ExecutionLogs.MaxEntriesPerExecution = i
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_EXECUTION_LOG_MAX_TAIL_ENTRIES"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			cfg.AgentField.ExecutionLogs.MaxTailEntries = i
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_EXECUTION_LOG_STREAM_IDLE_TIMEOUT"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			cfg.AgentField.ExecutionLogs.StreamIdleTimeout = d
+		}
+	}
+	if val := os.Getenv("AGENTFIELD_EXECUTION_LOG_MAX_DURATION"); val != "" {
+		if d, err := time.ParseDuration(val); err == nil {
+			cfg.AgentField.ExecutionLogs.MaxStreamDuration = d
+		}
 	}
 
 	// Approval workflow overrides

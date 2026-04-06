@@ -8,6 +8,7 @@ import {
   X,
   Clock
 } from "@/components/ui/icon-bridge";
+import { formatCompactRelativeTime } from "@/utils/dateFormat";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -61,16 +62,7 @@ export function CompactWorkflowSummary({
     return `${(durationMs / 60000).toFixed(1)}m`;
   };
 
-  const formatRelativeTime = (timestamp: string) => {
-    const now = new Date();
-    const time = new Date(timestamp);
-    const diffMs = now.getTime() - time.getTime();
-
-    if (diffMs < 60000) return "now";
-    if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m`;
-    if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}h`;
-    return `${Math.floor(diffMs / 86400000)}d`;
-  };
+  const formatRelativeTime = formatCompactRelativeTime;
 
   const formatStartedTime = (timestamp: string) => {
     const date = new Date(timestamp);
@@ -142,7 +134,7 @@ export function CompactWorkflowSummary({
 
           {/* Full Workflow ID */}
           <div className="flex items-center gap-2">
-            <span className="text-body-small">ID:</span>
+            <span className="text-sm text-muted-foreground">ID:</span>
             <HoverCard>
               <HoverCardTrigger asChild>
                 <code
@@ -181,7 +173,7 @@ export function CompactWorkflowSummary({
         </div>
 
         {/* Center: Metrics */}
-        <div className="hidden md:flex items-center gap-3 text-body-small">
+        <div className="hidden md:flex items-center gap-3 text-sm text-muted-foreground">
           <span>Exec: <span className="font-medium text-foreground">{workflow.total_executions}</span></span>
           <span>•</span>
           <span>Depth: <span className="font-medium text-foreground">{workflow.max_depth}</span></span>
@@ -258,7 +250,7 @@ export function CompactWorkflowSummary({
         </div>
 
         {/* Right: Timestamps + Close */}
-        <div className="flex items-center gap-3 text-body-small flex-shrink-0">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground flex-shrink-0">
           <HoverCard>
             <HoverCardTrigger asChild>
               <span className="cursor-pointer hover:text-foreground transition-colors">
@@ -303,7 +295,7 @@ export function CompactWorkflowSummary({
       </div>
 
       {/* Mobile: Metrics Row */}
-      <div className="md:hidden flex items-center gap-3 text-body-small mt-2 pt-2 border-t border-border/50">
+      <div className="md:hidden flex items-center gap-3 text-sm text-muted-foreground mt-2 pt-2 border-t border-border/50">
         <span>Exec: <span className="font-medium text-foreground">{workflow.total_executions}</span></span>
         <span>•</span>
         <span>Depth: <span className="font-medium text-foreground">{workflow.max_depth}</span></span>

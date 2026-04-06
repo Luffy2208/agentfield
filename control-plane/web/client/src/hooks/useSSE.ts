@@ -19,6 +19,8 @@ interface SSEOptions {
   onConnectionChange?: (connected: boolean) => void;
   /** Callback for errors */
   onError?: (error: Event) => void;
+  /** Whether to accumulate events in the events array (default: false) */
+  trackEvents?: boolean;
 }
 
 /**
@@ -64,7 +66,8 @@ export function useSSE<T = any>(
     exponentialBackoff = true,
     eventTypes = [],
     onConnectionChange,
-    onError
+    onError,
+    trackEvents = false
   } = options;
 
   const [state, setState] = useState<SSEState>({
@@ -166,7 +169,9 @@ export function useSSE<T = any>(
         id: event.lastEventId || undefined
       };
       setLatestEvent(sseEvent);
-      setEvents(prev => [...prev.slice(-99), sseEvent]); // Keep last 100 events
+      if (trackEvents) {
+        setEvents(prev => [...prev.slice(-99), sseEvent]); // Keep last 100 events
+      }
     } catch (error) {
       console.warn('🚨 SSE: Failed to parse event data:', error, 'Raw data:', event.data);
     }

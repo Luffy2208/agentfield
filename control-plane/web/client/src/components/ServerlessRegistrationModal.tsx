@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, AlertCircle, CheckCircle2, Server } from '@/components/ui/icon-bridge';
+import { Loader2, AlertCircle, CheckCircle2, AgentNodeIcon } from '@/components/ui/icon-bridge';
 import { registerServerlessAgent } from '@/services/api';
 
 interface ServerlessRegistrationModalProps {
@@ -98,7 +98,7 @@ export function ServerlessRegistrationModal({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Server className="h-5 w-5" />
+            <AgentNodeIcon className="h-5 w-5" />
             Register Remote Agent
           </DialogTitle>
           <DialogDescription>
@@ -121,7 +121,7 @@ export function ServerlessRegistrationModal({
                 disabled={isLoading || !!success}
                 className="font-mono text-sm"
               />
-              <p className="text-body-small">
+              <p className="text-sm text-muted-foreground">
                 The URL where your remote agent is deployed
               </p>
             </div>
@@ -149,8 +149,8 @@ export function ServerlessRegistrationModal({
 
             <div className="rounded-lg bg-muted p-3 border">
               <div className="flex items-start gap-2">
-                <Server className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <div className="text-body-small">
+                <AgentNodeIcon className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div className="text-sm text-muted-foreground">
                   <div className="font-semibold mb-1">Automatic Discovery</div>
                   <div>The system will call your agent's <code className="bg-muted-foreground/10 px-1 rounded">/discover</code> endpoint to automatically detect all reasoners and skills.</div>
                 </div>
@@ -183,7 +183,7 @@ export function ServerlessRegistrationModal({
                 </>
               ) : (
                 <>
-                  <Server className="mr-2 h-4 w-4" />
+                  <AgentNodeIcon className="mr-2 h-4 w-4" />
                   Register
                 </>
               )}

@@ -31,8 +31,8 @@ export function ExecutionStatsCard({ stats, className = '' }: ExecutionStatsCard
             <Analytics className="h-4 w-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-body-small">Total Executions</p>
-            <p className="text-heading-3">{totalExecutions.toLocaleString()}</p>
+            <p className="text-sm text-muted-foreground">Total Executions</p>
+            <p className="text-base font-semibold">{totalExecutions.toLocaleString()}</p>
           </div>
         </div>
 
@@ -43,12 +43,12 @@ export function ExecutionStatsCard({ stats, className = '' }: ExecutionStatsCard
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-body-small">Successful</p>
+              <p className="text-sm text-muted-foreground">Successful</p>
               <Badge variant="outline" className="h-4 px-1.5 text-xs bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
                 {successRate}%
               </Badge>
             </div>
-            <p className="text-heading-3 text-green-600 dark:text-green-400">
+            <p className="text-base font-semibold text-green-600 dark:text-green-400">
               {successfulExecutions.toLocaleString()}
             </p>
           </div>
@@ -61,12 +61,12 @@ export function ExecutionStatsCard({ stats, className = '' }: ExecutionStatsCard
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <p className="text-body-small">Failed</p>
+              <p className="text-sm text-muted-foreground">Failed</p>
               <Badge variant="outline" className="h-4 px-1.5 text-xs bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800">
                 {failureRate}%
               </Badge>
             </div>
-            <p className="text-heading-3 text-red-600 dark:text-red-400">
+            <p className="text-base font-semibold text-red-600 dark:text-red-400">
               {failedExecutions.toLocaleString()}
             </p>
           </div>
@@ -78,8 +78,8 @@ export function ExecutionStatsCard({ stats, className = '' }: ExecutionStatsCard
             <InProgress className="h-4 w-4 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-body-small">Currently Running</p>
-            <p className="text-heading-3 text-blue-600 dark:text-blue-400">
+            <p className="text-sm text-muted-foreground">Currently Running</p>
+            <p className="text-base font-semibold text-blue-600 dark:text-blue-400">
               {runningExecutions.toLocaleString()}
             </p>
           </div>

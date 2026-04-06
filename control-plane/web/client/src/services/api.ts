@@ -593,3 +593,180 @@ export async function registerServerlessAgent(invocationUrl: string): Promise<{
     throw error;
   }
 }
+
+// ============================================================================
+// Agent node process logs (UI proxy → NDJSON)
+// ============================================================================
+
+/** NDJSON v1 from agent process log ring (Python / Go / TypeScript SDKs). */
+export type NodeLogEntry = {
+  v: number;
+  seq: number;
+  ts: string;
+  stream: string;
+  line: string;
+  truncated?: boolean;
+  /** Optional severity when SDKs emit it (e.g. log, info, warn, error). */
+  level?: string;
+  /** Optional logical source (e.g. sdk id, logger name). */
+  source?: string;
+};
+
+export type NodeLogProxyEffective = {
+  connect_timeout: string;
+  stream_idle_timeout: string;
+  max_stream_duration: string;
+  max_tail_lines: number;
+};
+
+export type NodeLogProxySettingsResponse = {
+  effective: NodeLogProxyEffective;
+  env_locks: Record<string, boolean>;
+};
+
+function nodeLogsAuthHeaders(): HeadersInit {
+  const h: Record<string, string> = {};
+  if (globalApiKey) {
+    h["X-API-Key"] = globalApiKey;
+  }
+  return h;
+}
+
+async function nodeLogsHttpError(response: Response): Promise<Error> {
+  let msg = `HTTP ${response.status}`;
+  try {
+    const j = (await response.json()) as {
+      message?: string;
+      error?: string;
+    };
+    if (j.message) msg = j.message;
+    else if (j.error) msg = String(j.error);
+  } catch {
+    try {
+      const t = await response.text();
+      if (t) msg = t.slice(0, 200);
+    } catch {
+      /* ignore */
+    }
+  }
+  const err = new Error(msg);
+  err.name = "NodeLogsError";
+  return err;
+}
+
+export function parseNodeLogsNDJSON(text: string): NodeLogEntry[] {
+  const out: NodeLogEntry[] = [];
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      out.push(JSON.parse(line) as NodeLogEntry);
+    } catch {
+      /* skip malformed */
+    }
+  }
+  return out;
+}
+
+/**
+ * One-shot tail or bounded fetch (not for long-lived follow streams).
+ */
+export async function fetchNodeLogsText(
+  nodeId: string,
+  params: { tail_lines?: string; since_seq?: string; follow?: string },
+  init?: RequestInit
+): Promise<string> {
+  const sp = new URLSearchParams();
+  if (params.tail_lines != null) sp.set("tail_lines", params.tail_lines);
+  if (params.since_seq != null) sp.set("since_seq", params.since_seq);
+  if (params.follow != null) sp.set("follow", params.follow);
+  const q = sp.toString();
+  const path = `/nodes/${encodeURIComponent(nodeId)}/logs${q ? `?${q}` : ""}`;
+  const headers = new Headers(nodeLogsAuthHeaders());
+  if (init?.headers) {
+    const extra = new Headers(init.headers);
+    extra.forEach((v, k) => headers.set(k, v));
+  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers,
+  });
+  if (!response.ok) {
+    throw await nodeLogsHttpError(response);
+  }
+  return response.text();
+}
+
+/**
+ * Stream NDJSON log lines (use follow=1 on the agent/proxy).
+ */
+export async function* streamNodeLogsEntries(
+  nodeId: string,
+  params: { tail_lines?: string; since_seq?: string; follow?: string },
+  signal: AbortSignal
+): AsyncGenerator<NodeLogEntry, void, undefined> {
+  const sp = new URLSearchParams();
+  if (params.tail_lines != null) sp.set("tail_lines", params.tail_lines);
+  if (params.since_seq != null) sp.set("since_seq", params.since_seq);
+  if (params.follow != null) sp.set("follow", params.follow);
+  const q = sp.toString();
+  const path = `/nodes/${encodeURIComponent(nodeId)}/logs${q ? `?${q}` : ""}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    signal,
+    headers: nodeLogsAuthHeaders(),
+  });
+  if (!response.ok) {
+    throw await nodeLogsHttpError(response);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error("No response body");
+  }
+  const dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      if (buf.trim()) {
+        try {
+          yield JSON.parse(buf) as NodeLogEntry;
+        } catch {
+          /* ignore trailing garbage */
+        }
+      }
+      break;
+    }
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        yield JSON.parse(line) as NodeLogEntry;
+      } catch {
+        /* skip */
+      }
+    }
+  }
+}
+
+export async function getNodeLogProxySettings(): Promise<NodeLogProxySettingsResponse> {
+  return fetchWrapper<NodeLogProxySettingsResponse>("/settings/node-log-proxy");
+}
+
+export async function putNodeLogProxySettings(
+  body: Partial<{
+    connect_timeout: string;
+    stream_idle_timeout: string;
+    max_stream_duration: string;
+    max_tail_lines: number;
+  }>
+): Promise<{ effective: NodeLogProxyEffective }> {
+  return fetchWrapper<{ effective: NodeLogProxyEffective }>(
+    "/settings/node-log-proxy",
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    }
+  );
+}

@@ -159,10 +159,10 @@ function WorkflowHoverCard({
             <h4 className="font-semibold text-sm mb-1">
               {workflow.display_name}
             </h4>
-            <p className="text-body-small font-mono">
+            <p className="text-sm text-muted-foreground font-mono">
               ID: {workflow.workflow_id}
             </p>
-            <p className="text-body-small text-muted-foreground font-mono">
+            <p className="text-sm text-muted-foreground text-muted-foreground font-mono">
               Run: {workflow.run_id}
             </p>
           </div>
@@ -269,7 +269,7 @@ function LoadingRow() {
         <div className="flex items-center justify-center">
           <SpinnerGap className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-        <div className="col-span-9 text-body-small">
+        <div className="col-span-9 text-sm text-muted-foreground">
           Loading more workflows…
         </div>
       </div>
@@ -282,7 +282,7 @@ function EmptyState() {
     <Card className="card-foundation">
       <CardContent className="py-12">
         <div className="text-center space-y-2">
-          <div className="text-secondary-foundation text-heading-3">
+          <div className="text-secondary-foundation text-base font-semibold">
             No workflows yet
           </div>
           <div className="text-tertiary-foundation">
@@ -619,7 +619,7 @@ export function WorkflowsTable({
                       <div className="flex items-center gap-3">
                         <StatusPill status={normalizedStatus} />
                         {(activeCount > 0 || issueCount > 0) && (
-                          <div className="flex items-center gap-2 text-body-small">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             {activeCount > 0 && (
                               <span className={cn(statusTone.info.accent, "font-medium")}>{activeCount} active</span>
                             )}
@@ -636,7 +636,7 @@ export function WorkflowsTable({
                             <span className="font-semibold truncate text-sm">
                               {workflow.display_name || "Unnamed Workflow"}
                             </span>
-                            <span className="text-body-small text-muted-foreground truncate">
+                            <span className="text-sm text-muted-foreground text-muted-foreground truncate">
                               {workflow.agent_name ?? workflow.agent_id ?? '—'}
                             </span>
                           </div>
@@ -644,7 +644,7 @@ export function WorkflowsTable({
                       </div>
 
                       <div className="flex items-center">
-                        <span className="truncate text-body-small">
+                        <span className="truncate text-sm text-muted-foreground">
                           {workflow.current_task}
                         </span>
                       </div>
@@ -662,7 +662,7 @@ export function WorkflowsTable({
                       </div>
 
                       <div className="flex items-center justify-end">
-                        <span className="font-mono text-body-small">
+                        <span className="font-mono text-sm text-muted-foreground">
                           {workflow.duration_ms
                             ? formatDurationHumanReadable(workflow.duration_ms)
                             : workflow.status === "running" && workflow.started_at
@@ -717,7 +717,7 @@ export function WorkflowsTable({
           </div>
 
           {isFetchingMore && (
-            <div className="flex items-center justify-center gap-2 border-t border-border bg-muted/20 py-3 text-body-small">
+            <div className="flex items-center justify-center gap-2 border-t border-border bg-muted/20 py-3 text-sm text-muted-foreground">
               <SpinnerGap className="h-4 w-4 animate-spin" />
               Loading more workflows…
             </div>

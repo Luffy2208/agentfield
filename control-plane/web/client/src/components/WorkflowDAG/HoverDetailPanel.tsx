@@ -243,14 +243,14 @@ export const HoverDetailPanel = memo(({ node, position, visible }: HoverDetailPa
 
         {/* Technical Details */}
         <div className="space-y-1.5 border-t border-border/60 pt-3">
-          <div className="flex justify-between gap-4 text-[10px]">
+          <div className="flex justify-between gap-4 text-micro">
             <span className="text-muted-foreground">Execution ID:</span>
             <span className="font-mono text-foreground">
               {node.execution_id.slice(0, 12)}...
             </span>
           </div>
           {node.workflow_id && (
-            <div className="flex justify-between gap-4 text-[10px]">
+            <div className="flex justify-between gap-4 text-micro">
               <span className="text-muted-foreground">Workflow ID:</span>
               <span className="font-mono text-foreground">
                 {node.workflow_id.slice(0, 12)}...
@@ -258,7 +258,7 @@ export const HoverDetailPanel = memo(({ node, position, visible }: HoverDetailPa
             </div>
           )}
           {node.workflow_depth !== undefined && (
-            <div className="flex justify-between gap-4 text-[10px]">
+            <div className="flex justify-between gap-4 text-micro">
               <span className="text-muted-foreground">Depth:</span>
               <span className="font-mono text-foreground">
                 Level {node.workflow_depth}

@@ -46,7 +46,7 @@ from agentfield.mcp_client import MCPClientRegistry
 from agentfield.mcp_manager import MCPManager
 from agentfield.memory import MemoryClient, MemoryInterface
 from agentfield.memory_events import MemoryEventClient
-from agentfield.logger import log_debug, log_error, log_info, log_warn
+from agentfield.logger import log_debug, log_error, log_info, log_warn, set_cp_client
 from agentfield.router import AgentRouter
 from agentfield.connection_manager import ConnectionManager
 from agentfield.types import (
@@ -613,6 +613,7 @@ class Agent(FastAPI):
             base_url=agentfield_server, async_config=self.async_config, api_key=api_key
         )
         self.client.caller_agent_id = self.node_id
+        set_cp_client(self.client)
         self._current_execution_context: Optional[ExecutionContext] = None
 
         # Manages pending pause/approval futures resolved via webhook callback

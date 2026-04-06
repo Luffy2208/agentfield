@@ -147,7 +147,7 @@ export function EnhancedWorkflowOverview({
             <CardTitle>Run status</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-2 text-body">
+          <CardContent className="space-y-2 text-sm">
             <StatusRow icon={<CheckCircle className="h-3 w-3 text-emerald-500" />} label="Succeeded" value={statusCounts.succeeded || 0} />
             <StatusRow icon={<Activity className="h-3 w-3 text-amber-400" />} label="Running" value={statusCounts.running || 0} />
             <StatusRow icon={<XCircle className="h-3 w-3 text-rose-500" />} label="Failed" value={(statusCounts.failed || 0) + (statusCounts.timeout || 0)} />
@@ -161,10 +161,10 @@ export function EnhancedWorkflowOverview({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-heading-1">{successRate}%</span>
-              <span className="text-body-small">success rate</span>
+              <span className="text-2xl font-semibold tracking-tight">{successRate}%</span>
+              <span className="text-sm text-muted-foreground">success rate</span>
             </div>
-            <div className="flex items-center justify-between text-body">
+            <div className="flex items-center justify-between text-sm">
               <span>Completed</span>
               <span>{statusCounts.succeeded || 0}</span>
             </div>
@@ -178,10 +178,10 @@ export function EnhancedWorkflowOverview({
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-baseline justify-between">
-              <span className="text-heading-1">{dataCoverage}%</span>
-              <span className="text-body-small">nodes with IO</span>
+              <span className="text-2xl font-semibold tracking-tight">{dataCoverage}%</span>
+              <span className="text-sm text-muted-foreground">nodes with IO</span>
             </div>
-            <div className="flex items-center justify-between text-body">
+            <div className="flex items-center justify-between text-sm">
               <span>Tracked nodes</span>
               <span>{dataNodes.length}/{totalNodes}</span>
             </div>
@@ -193,10 +193,10 @@ export function EnhancedWorkflowOverview({
             <CardTitle>Timeline</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent className="space-y-2 text-body">
+          <CardContent className="space-y-2 text-sm">
             <div className="flex items-center justify-between">
               <span>Duration</span>
-              <span className="text-body font-medium text-text-primary">{formatDuration(workflow.duration_ms)}</span>
+              <span className="text-sm font-medium text-foreground">{formatDuration(workflow.duration_ms)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Started</span>
@@ -217,11 +217,11 @@ export function EnhancedWorkflowOverview({
               <Users className="h-4 w-4 text-muted-foreground" />
               Active agents
             </CardTitle>
-            <span className="text-body-small">{agentBreakdown.length} teams involved</span>
+            <span className="text-sm text-muted-foreground">{agentBreakdown.length} teams involved</span>
           </CardHeader>
           <CardContent className="space-y-3">
             {agentBreakdown.length === 0 && (
-              <p className="text-body-small">Agents will appear here once executions start.</p>
+              <p className="text-sm text-muted-foreground">Agents will appear here once executions start.</p>
             )}
             {agentBreakdown.map((agent) => {
               const participation = totalNodes > 0 ? Math.max(4, (agent.count / totalNodes) * 100) : 0;
@@ -234,7 +234,7 @@ export function EnhancedWorkflowOverview({
                 >
                   <div className="flex items-center justify-between text-sm font-medium text-foreground">
                     <span>{agent.name}</span>
-                    <span className="text-body-small">{agent.count} steps</span>
+                    <span className="text-sm text-muted-foreground">{agent.count} steps</span>
                   </div>
                   <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
                     <div
@@ -242,7 +242,7 @@ export function EnhancedWorkflowOverview({
                       style={{ width: `${participation}%` }}
                     />
                   </div>
-                  <div className="mt-2 text-body-small text-muted-foreground">Runtime {formatDuration(agent.totalDuration)}</div>
+                  <div className="mt-2 text-sm text-muted-foreground text-muted-foreground">Runtime {formatDuration(agent.totalDuration)}</div>
                 </button>
               );
             })}
@@ -255,11 +255,11 @@ export function EnhancedWorkflowOverview({
               <GitBranch className="h-4 w-4 text-muted-foreground" />
               Latest executions
             </CardTitle>
-              <span className="text-body-small">{activeExecutionCount} running now</span>
+              <span className="text-sm text-muted-foreground">{activeExecutionCount} running now</span>
           </CardHeader>
           <CardContent className="space-y-2">
             {recentExecutions.length === 0 && (
-              <p className="text-body-small">Execution history will appear once this workflow runs.</p>
+              <p className="text-sm text-muted-foreground">Execution history will appear once this workflow runs.</p>
             )}
             {recentExecutions.map((node) => {
               const normalized = normalizeExecutionStatus(node.status);
@@ -273,11 +273,11 @@ export function EnhancedWorkflowOverview({
                     <span className="font-medium text-foreground truncate">
                       {node.agent_name || node.reasoner_id || 'Workflow step'}
                     </span>
-                    <Badge variant="outline" className="text-[10px] capitalize">
+                    <Badge variant="outline" className="text-micro capitalize">
                       {getStatusLabel(normalized)}
                     </Badge>
                   </div>
-                  <div className="mt-1 flex items-center justify-between text-body-small text-muted-foreground">
+                  <div className="mt-1 flex items-center justify-between text-sm text-muted-foreground text-muted-foreground">
                     <span>{formatTime(node.started_at)}</span>
                     <span>{formatDuration(node.duration_ms)}</span>
                   </div>
@@ -291,29 +291,29 @@ export function EnhancedWorkflowOverview({
       <Card>
         <CardHeader className="flex flex-col gap-1">
           <CardTitle className="text-sm font-medium">Workflow metadata</CardTitle>
-          <span className="text-body-small">Identifiers and trust context</span>
+          <span className="text-sm text-muted-foreground">Identifiers and trust context</span>
         </CardHeader>
         <CardContent>
-          <ResponsiveGrid columns={{ base: 1, md: 2 }} gap="sm" align="start" className="text-body-small">
+          <ResponsiveGrid columns={{ base: 1, md: 2 }} gap="sm" align="start" className="text-sm text-muted-foreground">
             <div className="space-y-1">
-              <span className="uppercase tracking-wide text-[10px]">Workflow ID</span>
+              <span className="uppercase tracking-wide text-micro">Workflow ID</span>
               <code className="block text-xs font-mono bg-muted px-2 py-1 rounded text-foreground">
                 {workflow.workflow_id}
               </code>
             </div>
             <div className="space-y-1">
-              <span className="uppercase tracking-wide text-[10px]">Agent</span>
+              <span className="uppercase tracking-wide text-micro">Agent</span>
               <span className="text-sm font-medium text-foreground">{workflow.agent_name}</span>
             </div>
             {workflow.session_id && (
               <div className="space-y-1">
-                <span className="uppercase tracking-wide text-[10px]">Session</span>
+                <span className="uppercase tracking-wide text-micro">Session</span>
                 <span className="font-mono text-foreground">{workflow.session_id}</span>
               </div>
             )}
             {vcChain && (
               <div className="space-y-1">
-                <span className="uppercase tracking-wide text-[10px]">Verification</span>
+                <span className="uppercase tracking-wide text-micro">Verification</span>
                 <span className="text-sm text-foreground">VC chain available ({vcChain.component_vcs?.length || 0} credentials)</span>
               </div>
             )}
@@ -326,12 +326,12 @@ export function EnhancedWorkflowOverview({
 
 function StatusRow({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
-    <div className="flex items-center justify-between text-body">
-      <div className="flex items-center gap-2 text-body text-text-secondary">
+    <div className="flex items-center justify-between text-sm">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
         {icon}
         <span>{label}</span>
       </div>
-      <span className="text-body-small font-mono text-text-primary">{value}</span>
+      <span className="text-sm text-muted-foreground font-mono text-foreground">{value}</span>
     </div>
   );
 }

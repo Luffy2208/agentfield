@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Function, Information } from "@/components/ui/icon-bridge";
+import { Information, SkillIcon } from "@/components/ui/icon-bridge";
 import React, { useState } from "react";
 import type { SkillDefinition } from "../types/agentfield";
 import type { AgentDIDInfo, SkillDIDInfo } from "../types/did";
@@ -190,10 +190,10 @@ const SkillsList: React.FC<SkillsListProps> = ({
     return (
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Function className="h-4 w-4 text-muted-foreground" />
+          <SkillIcon className="h-4 w-4 text-muted-foreground" />
           <h4 className="text-sm font-medium">Skills (0)</h4>
         </div>
-        <p className="text-body-small">No skills available.</p>
+        <p className="text-sm text-muted-foreground">No skills available.</p>
       </div>
     );
   }
@@ -207,7 +207,7 @@ const SkillsList: React.FC<SkillsListProps> = ({
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Function className="h-4 w-4 text-muted-foreground" />
+          <SkillIcon className="h-4 w-4 text-muted-foreground" />
           <h4 className="text-sm font-medium">Skills ({skills.length})</h4>
           {showDIDDetails && didInfo && skillsWithDIDs > 0 && (
             <Badge
