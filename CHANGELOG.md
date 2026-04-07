@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.8] - 2026-04-07
+
+
+### Chores
+
+- Chore(deps): bump go.opentelemetry.io/otel/sdk
+
+Bumps the go_modules group with 1 update in the /control-plane directory: [go.opentelemetry.io/otel/sdk](https://github.com/open-telemetry/opentelemetry-go).
+
+
+Updates `go.opentelemetry.io/otel/sdk` from 1.39.0 to 1.40.0
+- [Release notes](https://github.com/open-telemetry/opentelemetry-go/releases)
+- [Changelog](https://github.com/open-telemetry/opentelemetry-go/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/open-telemetry/opentelemetry-go/compare/v1.39.0...v1.40.0)
+
+---
+updated-dependencies:
+- dependency-name: go.opentelemetry.io/otel/sdk
+  dependency-version: 1.40.0
+  dependency-type: direct:production
+  dependency-group: go_modules
+...
+
+Signed-off-by: dependabot[bot] <support@github.com> (a536086)
+
 ## [0.1.65-rc.7] - 2026-04-07
 
 
