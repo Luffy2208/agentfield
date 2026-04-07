@@ -30,6 +30,7 @@ import (
 	"github.com/Agent-Field/agentfield/control-plane/internal/infrastructure/process"
 	infrastorage "github.com/Agent-Field/agentfield/control-plane/internal/infrastructure/storage"
 	"github.com/Agent-Field/agentfield/control-plane/internal/logger"
+	"github.com/Agent-Field/agentfield/control-plane/internal/observability"
 	"github.com/Agent-Field/agentfield/control-plane/internal/server/apicatalog"    // API catalog
 	"github.com/Agent-Field/agentfield/control-plane/internal/server/knowledgebase" // Knowledge base
 	"github.com/Agent-Field/agentfield/control-plane/internal/server/middleware"
@@ -85,6 +86,8 @@ type AgentFieldServer struct {
 	adminGRPCPort          int
 	webhookDispatcher      services.WebhookDispatcher
 	observabilityForwarder services.ObservabilityForwarder
+	executionTracer        *observability.ExecutionTracer
+	tracerShutdown         func(context.Context) error
 	configMu               sync.RWMutex
 	// Agentic API
 	apiCatalog *apicatalog.Catalog
@@ -398,6 +401,29 @@ func NewAgentFieldServer(cfg *config.Config) (*AgentFieldServer, error) {
 		logger.Logger.Warn().Err(err).Msg("failed to start observability forwarder")
 	}
 
+	// Initialize OpenTelemetry distributed tracing
+	var executionTracer *observability.ExecutionTracer
+	var tracerShutdown func(context.Context) error
+	if cfg.Features.Tracing.Enabled {
+		tracer, shutdown, err := observability.InitTracer(context.Background(), observability.TracerConfig{
+			Enabled:     cfg.Features.Tracing.Enabled,
+			Exporter:    cfg.Features.Tracing.Exporter,
+			Endpoint:    cfg.Features.Tracing.Endpoint,
+			ServiceName: cfg.Features.Tracing.ServiceName,
+			Insecure:    cfg.Features.Tracing.Insecure,
+		})
+		if err != nil {
+			logger.Logger.Warn().Err(err).Msg("failed to initialize OTel tracer")
+		} else if tracer != nil {
+			executionTracer = observability.NewExecutionTracer(tracer)
+			tracerShutdown = shutdown
+			logger.Logger.Info().
+				Str("endpoint", cfg.Features.Tracing.Endpoint).
+				Str("service_name", cfg.Features.Tracing.ServiceName).
+				Msg("OpenTelemetry tracing enabled")
+		}
+	}
+
 	// Initialize LLM health monitor
 	var llmHealthMonitor *services.LLMHealthMonitor
 	if cfg.AgentField.LLMHealth.Enabled && len(cfg.AgentField.LLMHealth.Endpoints) > 0 {
@@ -449,6 +475,8 @@ func NewAgentFieldServer(cfg *config.Config) (*AgentFieldServer, error) {
 		payloadStore:           payloadStore,
 		webhookDispatcher:      webhookDispatcher,
 		observabilityForwarder: observabilityForwarder,
+		executionTracer:        executionTracer,
+		tracerShutdown:         tracerShutdown,
 		registryWatcherCancel:  nil,
 		adminGRPCPort:          adminPort,
 		apiCatalog:             initAPICatalog(),
@@ -525,6 +553,11 @@ func (s *AgentFieldServer) Start() error {
 	if err := s.cleanupService.Start(ctx); err != nil {
 		logger.Logger.Error().Err(err).Msg("Failed to start execution cleanup service")
 		// Don't fail server startup if cleanup service fails to start
+	}
+
+	// Start OpenTelemetry execution tracer in background
+	if s.executionTracer != nil {
+		s.executionTracer.Start(ctx)
 	}
 
 	// Start reasoner event heartbeat (30 second intervals)
@@ -653,6 +686,18 @@ func (s *AgentFieldServer) Stop() error {
 		defer cancel()
 		if err := s.observabilityForwarder.Stop(ctx); err != nil {
 			logger.Logger.Error().Err(err).Msg("Failed to stop observability forwarder")
+		}
+	}
+
+	// Stop OpenTelemetry execution tracer and flush remaining spans
+	if s.executionTracer != nil {
+		s.executionTracer.Stop()
+	}
+	if s.tracerShutdown != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.tracerShutdown(ctx); err != nil {
+			logger.Logger.Error().Err(err).Msg("Failed to shutdown OTel tracer provider")
 		}
 	}
 

@@ -162,6 +162,16 @@ type LLMEndpoint struct {
 type FeatureConfig struct {
 	DID       DIDConfig       `yaml:"did" mapstructure:"did"`
 	Connector ConnectorConfig `yaml:"connector" mapstructure:"connector"`
+	Tracing   TracingConfig   `yaml:"tracing" mapstructure:"tracing"`
+}
+
+// TracingConfig holds configuration for OpenTelemetry distributed tracing.
+type TracingConfig struct {
+	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`           // Enable OTel trace export (default: false)
+	Exporter    string `yaml:"exporter" mapstructure:"exporter"`         // "otlp-http" (default) or "otlp-grpc"
+	Endpoint    string `yaml:"endpoint" mapstructure:"endpoint"`         // OTLP endpoint (default: "localhost:4318")
+	ServiceName string `yaml:"service_name" mapstructure:"service_name"` // Service name for traces (default: "agentfield")
+	Insecure    bool   `yaml:"insecure" mapstructure:"insecure"`         // Skip TLS verification
 }
 
 // ConnectorConfig holds configuration for the connector service integration.
@@ -507,6 +517,21 @@ func ApplyEnvOverrides(cfg *Config) {
 		if i, err := strconv.Atoi(val); err == nil {
 			cfg.AgentField.Approval.DefaultExpiryHours = i
 		}
+	}
+
+	// OpenTelemetry tracing overrides (also supports standard OTEL_* env vars)
+	if val := os.Getenv("AGENTFIELD_TRACING_ENABLED"); val != "" {
+		cfg.Features.Tracing.Enabled = val == "true" || val == "1"
+	}
+	if val := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"); val != "" {
+		cfg.Features.Tracing.Endpoint = val
+		cfg.Features.Tracing.Enabled = true
+	}
+	if val := os.Getenv("OTEL_SERVICE_NAME"); val != "" {
+		cfg.Features.Tracing.ServiceName = val
+	}
+	if val := os.Getenv("AGENTFIELD_TRACING_INSECURE"); val != "" {
+		cfg.Features.Tracing.Insecure = val == "true" || val == "1"
 	}
 
 	// Connector overrides
