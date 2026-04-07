@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.4] - 2026-04-07
+
+
+### Fixed
+
+- Fix: resolve dependency and secret alerts (#351)
+
+* fix: resolve dependency and secret alerts
+
+* Fix TS SDK CI install and test scope (4980751)
+
 ## [0.1.65-rc.3] - 2026-04-07
 
 
