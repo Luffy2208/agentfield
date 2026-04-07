@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.2] - 2026-04-07
+
+
+### Chores
+
+- Chore(deps): bump the go_modules group across 1 directory with 3 updates (#348)
+
+Bumps the go_modules group with 3 updates in the /control-plane directory: [golang.org/x/crypto](https://github.com/golang/crypto), [google.golang.org/grpc](https://github.com/grpc/grpc-go) and [github.com/go-viper/mapstructure/v2](https://github.com/go-viper/mapstructure).
+
+
+Updates `golang.org/x/crypto` from 0.37.0 to 0.45.0
+- [Commits](https://github.com/golang/crypto/compare/v0.37.0...v0.45.0)
+
+Updates `google.golang.org/grpc` from 1.67.3 to 1.79.3
+- [Release notes](https://github.com/grpc/grpc-go/releases)
+- [Commits](https://github.com/grpc/grpc-go/compare/v1.67.3...v1.79.3)
+
+Updates `github.com/go-viper/mapstructure/v2` from 2.2.1 to 2.4.0
+- [Release notes](https://github.com/go-viper/mapstructure/releases)
+- [Changelog](https://github.com/go-viper/mapstructure/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/go-viper/mapstructure/compare/v2.2.1...v2.4.0)
+
+---
+updated-dependencies:
+- dependency-name: golang.org/x/crypto
+  dependency-version: 0.45.0
+  dependency-type: direct:production
+  dependency-group: go_modules
+- dependency-name: google.golang.org/grpc
+  dependency-version: 1.79.3
+  dependency-type: direct:production
+  dependency-group: go_modules
+- dependency-name: github.com/go-viper/mapstructure/v2
+  dependency-version: 2.4.0
+  dependency-type: indirect
+  dependency-group: go_modules
+...
+
+Signed-off-by: dependabot[bot] <support@github.com>
+Co-authored-by: dependabot[bot] <49699333+dependabot[bot]@users.noreply.github.com> (436bbc5)
+
+
+
+### Documentation
+
+- Docs: document hosted CLA bot policy (#347) (f61e72b)
+
 ## [0.1.65-rc.1] - 2026-04-07
 
 
