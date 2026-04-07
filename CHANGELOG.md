@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.6] - 2026-04-07
+
+
+### Added
+
+- Feat(observability): add OpenTelemetry distributed tracing export (#344)
+
+* feat(observability): add OpenTelemetry distributed tracing export
+
+Add OTel trace export to the control plane execution pipeline. Each
+execution creates a root span, and reasoner/skill invocations create
+child spans with execution metadata as span attributes.
+
+- New `control-plane/internal/observability/` package with TracerProvider
+  initialization (OTLP HTTP exporter) and ExecutionTracer that subscribes
+  to the existing execution and reasoner event buses
+- TracingConfig added to FeatureConfig with YAML config and env var
+  overrides (OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME)
+- Disabled by default; opt in via `features.tracing.enabled: true` or
+  AGENTFIELD_TRACING_ENABLED=true
+- Integrated into server lifecycle (start/shutdown with graceful flush)
+- 10 unit tests covering tracer init, span parent-child relationships,
+  execution lifecycle, duplicate handling, and shutdown cleanup
+
+* fix(deps): pin OTel dependencies to Go 1.24-compatible versions
+
+The initial OTel dependency pull upgraded transitive deps
+(golang.org/x/*, grpc) that require Go 1.25, but CI uses Go 1.24.
+Pin OTel to v1.32-v1.35 and restore the original grpc/x/ versions.
+
+---------
+
+Co-authored-by: Abir Abbas <abirabbas1998@gmail.com>
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (a9884e8)
+
 ## [0.1.65-rc.5] - 2026-04-07
 
 
