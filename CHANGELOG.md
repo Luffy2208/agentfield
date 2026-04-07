@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.5] - 2026-04-07
+
+
+### Changed
+
+- Refactor: remove all MCP code from codebase (#359)
+
+* refactor: remove all MCP (Model Context Protocol) code
+
+MCP UI was already removed in the latest main revamp. This cleans up
+all remaining MCP backend code, endpoints, CLI commands, SDK
+integrations, types, tests, and documentation across the entire
+codebase.
+
+Removed:
+- control-plane/internal/mcp/ (manager, discovery, protocol client, etc.)
+- control-plane/internal/cli/mcp.go + mcp/ stubs (CLI commands)
+- control-plane/internal/handlers/ui/mcp.go (HTTP handlers)
+- control-plane/internal/core/domain/mcp_health.go (domain models)
+- MCP routes from server.go (/mcp/health, /mcp/status, etc.)
+- MCP methods from AgentClient interface + HTTP implementation
+- MCPStatusInfo from types, AgentStatus, heartbeat processing
+- MCP health tracking from HealthMonitor and StatusManager
+- MCP event types from node events
+- sdk/python: mcp_manager, mcp_client, mcp_stdio_bridge, agent_mcp,
+  dynamic_skills, and all MCP test files
+- sdk/typescript: src/mcp/, types/mcp.ts, and MCP test files
+- web/client: src/mcp/, components/mcp/, mcpUtils.ts, and all MCP
+  references in pages/components/hooks/types
+- MCP knowledgebase article, config models, benchmark references
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* chore: ignore hypothesis test cache
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* fix(ci): remove unused imports left over from MCP removal
+
+- Remove unused `AgentNodeDetailsForUI` import in api.ts (TS6196)
+- Remove unused `asdict` import in test_types.py (F401)
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (f732ed5)
+
 ## [0.1.65-rc.4] - 2026-04-07
 
 
