@@ -6,6 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.16] - 2026-04-08
+
+
+### Fixed
+
+- Fix: implement runs search filter and reject empty agent node IDs (#369)
+
+* fix: implement runs search filter and reject empty agent node IDs
+
+The workflow-runs list endpoint silently ignored the `search` query
+parameter sent by the frontend, so typing in the search bar had no
+visible effect (TC-04-f). Add search support: parse the param in the
+handler, thread it through ExecutionFilter, and apply LIKE matching
+against run_id, agent_node_id, and reasoner_id in QueryRunSummaries.
+
+Agents could also register with an empty-string node ID, which
+rendered as a blank row in the UI (TC-05-b). Add a `validate:"required,min=1"`
+tag on AgentNode.ID to reject empty IDs at registration, filter out
+existing empty-ID records in GetNodesSummary, and show "(unknown)" as
+a frontend fallback.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* fix: add validation to serverless agent registration path
+
+RegisterServerlessAgentHandler was missing the validate.Struct() call
+that RegisterNodeHandler has, allowing empty/whitespace-only node IDs
+to bypass validation through the serverless registration path.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* test(storage): cover Search filter in QueryRunSummaries
+
+Adds TestQueryRunSummariesSearchFilter exercising the new LIKE filter
+across run_id, agent_node_id and reasoner_id, plus a no-match case.
+
+---------
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+Co-authored-by: Santosh <santosh@agentfield.ai> (9138475)
+
 ## [0.1.65-rc.15] - 2026-04-08
 
 
