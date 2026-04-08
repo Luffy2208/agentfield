@@ -6,6 +6,206 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.13] - 2026-04-08
+
+
+### Testing
+
+- Test: add 24 critical-path test files across control plane, SDKs (#352)
+
+* chore: remove internal test coverage audit doc
+
+* test(control-plane): add tests for services, middleware, and config overlay
+
+Adds white-box unit tests for previously-untested control plane files:
+
+services/
+- did_web_service: ParseDIDWeb / GenerateDIDWeb round-trip and resolution
+- ui_service: client subscription, dedupe, heartbeat, concurrent register/close
+- executions_ui_service: grouping, duration aggregation, status summary, filtering
+
+server/
+- config_db: storage section preservation, DB overlay merge, YAML round-trip,
+  invalid-payload handling
+
+server/middleware/
+- permission: caller DID precedence, request body restoration, fail-closed,
+  pending-approval target, target param parsing
+- connector_capability: disabled / read-only / nil-map handling, method gating
+
+Also adds .plandb.db to .gitignore.
+
+* test(control-plane): add handler tests for reasoners and memory events
+
+reasoners.go (~700 LOC, previously untested):
+- malformed reasoner-id parsing
+- node lookup, offline / unhealthy paths
+- workflow execution record persistence on success and failure
+- header propagation to proxied agent (X-Workflow-ID, X-Run-ID, etc.)
+- serverless payload encoding
+
+memory_events.go (WS + SSE memory subscriptions):
+- WebSocket upgrade success and rejection
+- Pattern filter matching, scope/scopeId filtering
+- Client disconnect cleanup (no goroutine leak)
+- Burst publish handling under slow reader
+
+* test(sdk/go): cover registration, verification, memory backend, and providers
+
+agent/registration_integration_test.go
+- happy-path register against httptest control plane
+- 404 fallback to legacy /api/v1/nodes/register
+- approval-pending exits cleanly when parent context ends
+- empty AgentFieldURL produces a clear error
+- concurrent RegisterNode does not race
+
+agent/verification_test.go (LocalVerifier)
+- Refresh populates policies, revocations, registered DIDs, admin pubkey
+- Refresh failure preserves prior cache
+- NeedsRefresh respects refreshInterval
+- concurrent Refresh + CheckRevocation safe under -race
+- did:key public key resolution and graceful malformed-input handling
+
+agent/memory_backend_test.go (ControlPlaneMemoryBackend)
+- scope-aware headers (workflow / session / global)
+- 404 → not-found sentinel; 500 propagated cleanly
+- Delete uses POST /api/v1/memory/delete
+- list builds correct query params
+
+harness/provider_error_integration_test.go
+- provider crash with no stderr
+- timeout under context deadline
+- malformed JSONL middle line tolerated
+- env var Env{KEY:""} unsets in subprocess
+- missing binary returns FailureCrash with helpful message
+
+* test(sdk/python): add error-path tests for DID, VC, tool calling, shutdown
+
+Python SDK has good happy-path coverage; these add failure-mode tests:
+
+test_did_manager_error_paths.py
+- network timeout / 5xx / truncated JSON during register_agent
+- X-API-Key header forwarded when configured
+- agent continues functioning after registration failure (silent degrade)
+
+test_vc_generator_error_paths.py
+- generate_execution_vc / create_workflow_vc under timeout / 5xx / bad JSON
+- disabled generator makes no HTTP calls
+
+test_tool_calling_error_paths.py
+- malformed tool args, invalid arg types, mixed valid/invalid in one turn
+- max_turns enforcement
+- tool not found does not crash the loop
+
+test_agent_graceful_shutdown.py
+- idempotent re-entrant stop
+- pending in-flight task handling
+- notification failure during shutdown
+- resource cleanup
+
+Five subtests are intentionally skipped with 'source bug:' markers documenting
+real defects discovered while writing the tests (Agent.stop() unimplemented,
+graceful_shutdown does not track in-flight tasks, etc.). These are targets for
+follow-up fixes in the implementation, not test bugs.
+
+* test(sdk/typescript): add 8 vitest suites covering core client and features
+
+The TS SDK had only ~6 real test files for ~50 source files. This adds
+behavior tests for the most-critical surfaces:
+
+Core client
+- agentfield_client: REST verbs, error envelope parsing, header propagation,
+  DID-signed requests, timeout behavior
+- agent_lifecycle: serve()/shutdown(), heartbeat scheduling, registration
+  payload, registration-failure handling
+- execution_context_async: AsyncLocalStorage propagation across nested and
+  parallel runs, isolation guarantees
+- memory_client_scopes: workflow/session/global scope resolution, metadata
+  passthrough headers, 404→undefined contract
+
+Features
+- workflow_reporter_dag: progress() / state transitions / failure propagation
+- tool_calling_errors: malformed JSON args, missing tool, max turns, max
+  tool calls, discovery filters
+- harness_runner_resilience: transient retry classification, backoff,
+  cost aggregation across attempts
+- agent_router_dispatch: skill vs reasoner routing, schema validation, 404
+
+42 tests across 8 suites, all green via vitest.
+
+* test(handlers): fix SSE test deadlock and reasoner header assertion
+
+- memory_events_test.go: The SSE handler does not flush response headers
+  until it writes the first event, so http.Client.Do blocks indefinitely
+  when no event is published before the request begins. Run the request
+  in a goroutine, wait for the subscription to register, then publish.
+- reasoners_test.go: Drop X-Agent-Node-ID propagation assertion. The
+  serverless execution path does not forward this caller header to the
+  downstream agent request, so the original assertion was incorrect.
+
+* test(control-plane): skip racy SSE happy-path test pending source fix
+
+The SSE handler in memory_events.go defers header flushing until the first
+matching event is written, and uses the deprecated CloseNotify() for client
+disconnect detection. Both behaviors interact poorly with httptest in CI:
+http.Client.Do blocks until the handler writes, and the test never
+completes within the CI test deadline.
+
+The other tests in this file (WS happy path, invalid-pattern cleanup,
+backpressure disconnect, upgrade rejection) already cover the same code
+paths, so skipping just this one is a clean win.
+
+Tracked source fix: #358
+
+* test(control-plane): unskip SSE happy-path test now that the deadlock is fixed
+
+The earlier deadlock was fixed in 7c81c534 by running the request in a
+goroutine and publishing after the subscription registers. The follow-up
+skip in c8992cd9 was redundant — the restructured test passes locally
+and in CI. Source-side flush refactor still tracked in #358.
+
+* Add coverage reporting workflow and fix local test entrypoints
+
+* test(web-ui): expand client coverage
+
+* test(sdk): raise python and typescript coverage
+
+* test(sdk-go): raise go coverage above 80
+
+* test(control-plane): cover storage vector and config paths
+
+* test(web-ui): cover vc service flows
+
+* fix(ci): stabilize coverage branch test runs
+
+* test(web-ui): expand api service coverage
+
+* test(control-plane): cover dashboard helper paths
+
+* test(control-plane): cover execution helper paths
+
+* test(web-ui): extract workflow dag utilities
+
+* test(web-ui): extract runs page utilities
+
+* test(web-ui): expand service coverage wave
+
+* test(control-plane): cover storage helper utilities
+
+* test(coverage): cover settings runs and workflow helpers
+
+* test(coverage): cover comparison page and execution records helpers
+
+* test(control-plane): cover execution log handlers
+
+* test(coverage): cover agent pages and identity handlers
+
+* test(web-ui): cover node detail page flows
+
+* test(web-ui): rebase client tests onto main
+
+* test(web-ui): align node detail mocks with current types (cf922f9)
+
 ## [0.1.65-rc.12] - 2026-04-08
 
 
