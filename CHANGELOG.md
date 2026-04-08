@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.10] - 2026-04-08
+
+
+### Added
+
+- Feat(skill+cli): agentfield-multi-reasoner-builder skill, af doctor, af init --docker, af skill install (#367)
+
+Adds the agentfield-multi-reasoner-builder skill, af doctor, af init --docker, and the full af skill install architecture (embed + 7 target integrations + state tracking). install.sh now installs the skill into every detected coding agent by default. See PR #367 for the full breakdown, end-to-end test results, and design rationale. (c34e3e6)
+
 ## [0.1.65-rc.9] - 2026-04-07
 
 
