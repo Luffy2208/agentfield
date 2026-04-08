@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.15] - 2026-04-08
+
+
+### Fixed
+
+- Fix(web-ui): remove orphan test files blocking the release pipeline
+
+PR #350 (Chore/UI audit phase1 quick wins) deleted HealthBadge.tsx and
+NodeDetailPage.tsx but left behind two test files that import them:
+
+  control-plane/web/client/src/test/components/GeneralComponents.test.tsx
+  control-plane/web/client/src/test/pages/NodeDetailPage.test.tsx
+
+Both fail at TypeScript compile with:
+
+  TS2307: Cannot find module '@/components/HealthBadge'
+  TS2307: Cannot find module '@/pages/NodeDetailPage'
+
+The `tsc -b && vite build` step inside the Release workflow (goreleaser
+pre-build hook) fails on these errors, which means every release since
+v0.1.65-rc.12 has failed — including the commits that cut rc.13 and rc.14
+tags. No binaries have been published past rc.12. The staging install
+has been stuck on rc.12 for everyone running `curl … | bash -s -- --staging`.
+
+The tests cannot run at all (imports fail at TS compile time) so they
+are providing zero coverage. Removing them is safe and restores the
+release pipeline.
+
+This unblocks v0.1.65-rc.15 which will include:
+- The meta-philosophy rewrite (commit 1f0c8872)
+- The SkillVersion 0.2.0 -> 0.3.0 bump in catalog.go (commit 6a41ddf4)
+- All the post-mortem hardenings in the embedded skill content
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (0be47a3)
+
 ## [0.1.65-rc.14] - 2026-04-08
 
 
