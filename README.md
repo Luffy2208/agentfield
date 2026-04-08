@@ -75,10 +75,20 @@ app.run()
 ## Quick Start
 
 ```bash
-curl -fsSL https://agentfield.ai/install.sh | bash   # Install CLI
+# Installs the af CLI AND drops the agentfield-multi-reasoner-builder skill
+# into every coding agent on your machine (Claude Code, Codex, Gemini,
+# OpenCode, Aider, Windsurf, Cursor) — no prompts, no second step.
+curl -fsSL https://agentfield.ai/install.sh | bash
+
 af init my-agent --defaults                            # Scaffold agent
 cd my-agent && pip install -r requirements.txt
 ```
+
+> **Just want the binary?** `curl -fsSL https://agentfield.ai/install.sh | bash -s -- --no-skill`
+>
+> **Already have `af` installed and just want the skill?** `af skill install` (interactive picker) or `af skill install --all` (every detected agent). See [`af skill --help`](#) for `list`, `update`, `uninstall`, version pinning, and per-target installs.
+
+The skill teaches any coding agent how to architect and ship a complete multi-reasoner backend on AgentField — composite-intelligence patterns, deep DAG composition, scaffold-to-curl in one workflow. Once installed, just open Claude Code / Codex / etc. and ask **"build me a multi-reasoner agent that does X"** — the skill fires automatically.
 
 ```bash
 af server          # Terminal 1 → Dashboard at http://localhost:8080
