@@ -6,6 +6,109 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.21] - 2026-04-09
+
+
+### Fixed
+
+- Fix: block revoked-tag agent calls + friendly empty logs state (TC-034, TC-035) (#373)
+
+* fix: block calls to revoked-tag agents on execute path + friendly empty logs state
+
+TC-034: The direct execute API path (prepareExecution) did not check
+agent lifecycle_status before dispatching calls. Agents with revoked
+tags (status=pending_approval) were still callable via this path,
+despite being correctly blocked on the reasoner/DID paths. Added a
+lifecycle_status check that returns 503 Service Unavailable, consistent
+with the existing check in ExecuteReasonerHandler.
+
+TC-035: When a newly registered agent has no base_url or returns 404
+for logs, the Process Logs panel showed raw error text. Now these
+expected "no logs yet" scenarios fall through to the friendly empty
+state message instead of rendering a destructive error alert.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* test: add coverage for pending_approval agent rejection on execute path
+
+Adds TestExecuteHandler_PendingApprovalAgent to verify that agents with
+lifecycle_status=pending_approval return 503 Service Unavailable when
+called via the direct execute API path. Satisfies patch coverage gate.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+
+* fix(review): stable error_code contract for revoked-tag 503s + typed NodeLogsError (TC-034, TC-035)
+
+Addresses deep-review findings on PR #373.
+
+TC-034 (Go / security response contract):
+- Extend executionPreconditionError with an optional errorCode field
+  so preconditions can carry a stable machine-readable code.
+- writeExecutionError now promotes errorCode to top-level `error` and
+  moves the human text to `message` when set, matching the contract
+  already used by reasoners.go / skills.go / permission middleware
+  ({"error": "agent_pending_approval", "message": "..."}).
+- prepareExecution sets errorCode: "agent_pending_approval" on the
+  revoked-tag 503. Async execute inherits the fix for free since both
+  paths share prepareExecution.
+- Without this, clients pattern-matching on
+  error == "agent_pending_approval" silently regressed on the direct
+  execute path — they would see only a generic agent_error message.
+- Adds a test asserting ErrorAs + 503 + ErrorCode + the wire-level
+  response shape, and that no execution record is persisted before
+  the guard fires. Closes the 0% patch-coverage gap CI was flagging
+  for execute.go:1045-1051.
+
+TC-035 (UI / fragile string matching):
+- Promote node-logs fetch errors to a typed NodeLogsError class
+  carrying .status and the stable .code from the response body.
+- NodeProcessLogsPanel branches on (status === 404 ||
+  code === "agent_unreachable") instead of regex-matching the human
+  message — robust to backend phrasing changes and avoids swallowing
+  unrelated errors that happen to contain "404".
+- Logs swallowed empty-state events via console.debug in dev so
+  developers still see them in devtools.
+- Adds two panel tests covering the 404 and agent_unreachable
+  branches; verifies they render the friendly empty state and that
+  the generic-error branch still shows the destructive alert.
+
+Tested: go test ./internal/handlers/ (all pass); web panel vitest
+(4 tests pass); tsc --noEmit clean; eslint clean on touched files.
+
+* test: update pending_approval assertion to match new wire contract
+
+Upstream's TestExecuteHandler_PendingApprovalAgent asserted that the
+human-readable text "awaiting tag approval" appeared in the top-level
+`error` field. That shape is no longer correct under the stable-code
+contract: `error` now carries the machine code
+("agent_pending_approval") and the human text moves to `message` —
+matching reasoners.go / skills.go / permission middleware.
+
+Update the assertion to verify both fields of the new contract.
+
+* test(ui): export NodeLogsError from panel mocks so instanceof check works
+
+NodeProcessLogsPanel now does `e instanceof NodeLogsError` in its error
+branch (to distinguish 404 / agent_unreachable empty states from real
+errors). The existing NodeProcessLogsPanel.test.tsx mock for
+@/services/api did not export NodeLogsError, so the reference was
+undefined at runtime and `instanceof` threw a TypeError. That TypeError
+was caught inside the component's error handling and prevented the
+destructive-alert render path from running — failing the
+"shows a destructive alert when the tail request fails" test even
+though the fallback logic itself was correct.
+
+Mirror the minimal shape-compatible NodeLogsError mock already used by
+NodeProcessLogsPanel.coverage.test.tsx. No production code changes.
+
+Tested: vitest run src/test/components/NodeProcessLogsPanel.test.tsx
+src/test/components/NodeProcessLogsPanel.coverage.test.tsx → 6/6 pass.
+
+---------
+
+Co-authored-by: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+Co-authored-by: Santosh <santosh@agentfield.ai> (855e501)
+
 ## [0.1.65-rc.20] - 2026-04-09
 
 

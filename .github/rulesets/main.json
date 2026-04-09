@@ -47,7 +47,7 @@
         "do_not_enforce_on_create": false,
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
-          { "context": "Coverage Summary / coverage-summary" }
+          { "context": "coverage-summary", "integration_id": 15368 }
         ]
       }
     }
