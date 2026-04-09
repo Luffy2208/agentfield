@@ -6,6 +6,113 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.65-rc.23] - 2026-04-09
+
+
+### Fixed
+
+- Fix(security): do not preserve stale LifecycleStatus across re-registration
+
+The re-registration preservation block (introduced earlier in this PR
+in both RegisterNodeHandler and RegisterServerlessAgentHandler) was
+preserving existingNode.LifecycleStatus alongside ApprovedTags. This
+broke docs_quick_start_execution_webhook_contract functional test
+because:
+
+1. test_docs_quick_start_flow registers "my-agent", runs an execution,
+   then the agent server exits. The DB row lands in stopping/offline.
+2. test_docs_quick_start_execution_webhook_contract re-registers the
+   same node_id. The preservation code pulled the stale terminal
+   status (stopping) into the fresh registration.
+3. The UPSERT persisted "my-agent" in a mid-shutdown state even
+   though the agent process was running fine.
+4. The reasoner executed successfully (reasoner logs confirm, and
+   the synchronous /execute HTTP response returned status=succeeded),
+   but downstream status inference in the webhook dispatcher read
+   the stale agent state and the execution record's Status ended up
+   as "failed". determineWebhookEvent() thus returned
+   "execution.failed" instead of "execution.completed", breaking the
+   test assertion at test_quick_start.py:185.
+
+Fix: remove the `newNode.LifecycleStatus = existingNode.LifecycleStatus`
+line from both handlers.
+
+- RegisterNodeHandler: the fallback below already resets empty/offline
+  status to AgentStatusStarting, which is the correct initial state
+  for a re-registering agent. The lifecycle state machine takes it
+  from there.
+- RegisterServerlessAgentHandler: the freshly constructed newNode
+  already has LifecycleStatus = AgentStatusReady set during discovery,
+  which is the correct state for a serverless agent that just
+  completed its discover handshake.
+
+The ApprovedTags preservation (which is what the code comment
+actually claims this block is for) remains intact. Per-reasoner and
+per-skill approved-tag filtering also remain intact. The admin-
+revocation rejection path (the security fix) is unaffected.
+
+All 3 serverless revocation tests still pass, and the broader
+handlers package tests still pass:
+  (cd control-plane && go test ./internal/handlers/)  # 4.4s, ok (ce94ac1)
+
+- Fix(security): propagate skill tags through serverless discovery + close patch coverage gap
+
+Two fixes to make the re-registration approval-preservation path in
+RegisterServerlessAgentHandler work correctly and pass the patch
+coverage gate:
+
+1. Discovery parser was dropping Tags from skills.
+   The anonymous Skills struct in the serverless discovery payload
+   decoder had no `Tags` field, and the SkillDefinition conversion
+   didn't copy tags either. As a result newNode.Skills[i].Tags was
+   always empty in production, which meant the re-register
+   preservation loop at the end of the same handler was silently a
+   no-op for skills: it would iterate zero tags and clear
+   ApprovedTags rather than filter it against existingNode's
+   approved set. Reasoners were already handled correctly; this
+   brings skills to parity.
+
+2. Revert a cosmetic indent change unrelated to the security fix.
+   The auto-discovery block in RegisterNodeHandler was dedented by
+   one tab in the original PR, which is unrelated to blocking
+   revoked-tag re-registration. Reverting that block keeps this PR
+   focused on the security fix and removes it from diff-cover's
+   touched-lines set.
+
+3. Extend TestRegisterServerlessAgentHandler_PreservesApprovedTagsOnReregister
+   to send a skill with tags in the discover response and assert
+   per-reasoner and per-skill ApprovedTags filtering. This was the
+   only previously-uncovered block in the security fix (nodes.go
+   ~1473-1480, the Skills preservation loop) and now exercises the
+   real filtering path end-to-end.
+
+Verified locally:
+  (cd control-plane && go test -run 'TestRegisterServerlessAgentHandler_' \
+     ./internal/handlers/...)  # all 3 tests pass (cbe50d1)
+
+- Fix(security): block serverless re-register bypass of admin revocation (#374)
+
+RegisterServerlessAgentHandler unconditionally set LifecycleStatus=ready
+on re-registration and called RegisterAgent directly, bypassing the
+admin-revocation preservation logic used by the standard registration
+path (nodes.go:540-556) and the 503 block at nodes.go:1051-1056.
+
+An admin-revoked serverless agent could clear its own pending_approval
+state by simply calling POST /api/v1/nodes/register-serverless again —
+defeating the revocation mechanism that #373 landed.
+
+- Reject re-registration of admin-revoked agents with 503
+  {"error": "agent_pending_approval", "message": "..."}, matching the
+  stable contract used elsewhere in the handler.
+- Preserve existingNode.LifecycleStatus and ApprovedTags on non-revoked
+  re-registrations so the UPSERT does not clobber approval state.
+- Leave first-registration behavior unchanged.
+
+Adds regression tests covering the revoked-reject path and the
+approved-tags-preservation path.
+
+Closes #374. (7accf02)
+
 ## [0.1.65-rc.22] - 2026-04-09
 
 
