@@ -39,7 +39,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 concurrency:
   group: coverage-${{ github.ref }}
@@ -211,6 +210,10 @@ jobs:
           ./scripts/patch-coverage-gate.sh
         continue-on-error: true
 
+      - name: Save PR metadata for report workflow
+        if: github.event_name == 'pull_request'
+        run: echo '${{ github.event.pull_request.number }}' > test-reports/coverage/pr-number.txt
+
       - name: Upload aggregated coverage artifact
         if: github.event_name != 'merge_group'
         uses: actions/upload-artifact@v4
@@ -218,20 +221,6 @@ jobs:
           name: coverage-summary
           path: test-reports/coverage/
           retention-days: 7
-
-      - name: Comment coverage report on PR
-        if: github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: coverage-gate
-          path: test-reports/coverage/gate-report.md
-
-      - name: Comment patch coverage report on PR
-        if: github.event_name == 'pull_request' && hashFiles('test-reports/coverage/patch-gate-report.md') != ''
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: patch-coverage-gate
-          path: test-reports/coverage/patch-gate-report.md
 
       - name: Fail the job if any gate failed
         if: github.event_name != 'merge_group' && (steps.gate.outcome == 'failure' || steps.patch_gate.outcome == 'failure')
