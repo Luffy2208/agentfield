@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
@@ -470,7 +471,17 @@ class AgentAI:
                     )
 
                 async def _make_call():
-                    return await litellm_module.acompletion(**params)
+                    timeout = getattr(self.agent.async_config, "llm_call_timeout", 120.0)
+                    try:
+                        return await asyncio.wait_for(
+                            litellm_module.acompletion(**params),
+                            timeout=timeout,
+                        )
+                    except asyncio.TimeoutError:
+                        model_name = params.get("model", "unknown")
+                        raise TimeoutError(
+                            f"LLM call to {model_name} timed out after {timeout}s"
+                        )
 
                 async def _call_with_fallbacks():
                     fallback_models = getattr(final_config, "fallback_models", None)
@@ -529,7 +540,17 @@ class AgentAI:
                 raise ImportError(
                     "litellm is not installed. Please install it with `pip install litellm`."
                 )
-            return await litellm_module.acompletion(**litellm_params)
+            timeout = getattr(self.agent.async_config, "llm_call_timeout", 120.0)
+            try:
+                return await asyncio.wait_for(
+                    litellm_module.acompletion(**litellm_params),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                model_name = litellm_params.get("model", "unknown")
+                raise TimeoutError(
+                    f"LLM call to {model_name} timed out after {timeout}s"
+                )
 
         async def _execute_with_fallbacks():
             # Check for configured fallback models in AI config
