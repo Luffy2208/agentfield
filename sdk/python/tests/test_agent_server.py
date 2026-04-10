@@ -577,3 +577,82 @@ async def test_debug_tasks_endpoint_captures_pending_coroutines():
             await hung_task
         except (asyncio.CancelledError, BaseException):
             pass
+
+
+@pytest.mark.asyncio
+async def test_debug_tasks_endpoint_survives_cancelled_and_done_tasks():
+    """The endpoint must remain responsive even when the task list contains
+    tasks in pathological states (cancelled, done with exception, etc.).
+    A naive implementation that calls `task.get_stack()` on a finished task
+    will not crash but will return an empty stack — verify the JSON is still
+    well-formed."""
+    app = make_agent_app()
+    _setup_server(app)
+
+    async def quick_done():
+        return "done"
+
+    async def cancelled_one():
+        await asyncio.sleep(60)
+
+    done_task = asyncio.create_task(quick_done(), name="already-done-task")
+    cancelled_task = asyncio.create_task(cancelled_one(), name="will-be-cancelled-task")
+    await asyncio.sleep(0)  # let scheduling happen
+    cancelled_task.cancel()
+    try:
+        await cancelled_task
+    except asyncio.CancelledError:
+        pass
+    await done_task  # let it finish
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.get("/debug/tasks")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    # Must return well-formed JSON regardless of task states.
+    assert isinstance(body["count"], int)
+    assert isinstance(body["tasks"], list)
+    # The endpoint should not crash even though the cancelled and done tasks
+    # may already have been removed from the live set by the time the request
+    # handler runs.
+
+
+@pytest.mark.asyncio
+async def test_debug_tasks_endpoint_reports_done_and_cancelled_state():
+    """Pin down the schema: each task entry must include `done=` and
+    `cancelled=` markers so operators can quickly distinguish "stuck on
+    await" from "finished but not yet collected" when diagnosing a hang."""
+    app = make_agent_app()
+    _setup_server(app)
+
+    pending_event = asyncio.Event()
+
+    async def stuck():
+        await pending_event.wait()
+
+    stuck_task = asyncio.create_task(stuck(), name="stuck-on-await-task")
+    try:
+        await asyncio.sleep(0)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/debug/tasks")
+
+        body = resp.json()
+        joined = "\n".join(body["tasks"])
+        # Find the entry for our stuck task and assert it carries the
+        # done/cancelled markers we documented in the endpoint.
+        assert "stuck-on-await-task" in joined
+        assert "done=False" in joined
+        assert "cancelled=False" in joined
+    finally:
+        pending_event.set()
+        stuck_task.cancel()
+        try:
+            await stuck_task
+        except (asyncio.CancelledError, BaseException):
+            pass
