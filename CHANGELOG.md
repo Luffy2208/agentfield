@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.66-rc.1] - 2026-04-10
+
+
+### CI
+
+- Ci: guard coverage comment steps on PR number output
+
+The gate-report.md is always present when the artifact exists, so
+gate on the PR number instead of hashFiles. Keep hashFiles for
+patch-gate-report.md which is conditionally generated.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (ad62633)
+
+- Ci: use workflow_run pattern for coverage PR comments
+
+Fork PRs get a read-only GITHUB_TOKEN, so the coverage-summary job
+cannot post sticky PR comments — causing the required check to fail
+even when all gates pass (see #381).
+
+Fix: adopt the same workflow_run pattern used by the performance
+report. The "Coverage Summary" workflow now only runs tests and gates,
+and a new "Coverage Report" workflow triggers on workflow_run to post
+comments in the context of the base repo with write permissions.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (c26d8e3)
+
+- Ci: allow coverage-summary to pass on fork PRs
+
+Fork PRs get a read-only GITHUB_TOKEN, so the sticky PR comment steps
+fail with "Resource not accessible by integration". Add
+continue-on-error: true to both comment steps so the required check
+still reports pass/fail based on the actual coverage gate, not on
+whether the comment could be posted.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (29c2815)
+
+
+
+### Fixed
+
+- Fix(sdk/python): break tool-call loop early on asyncio.TimeoutError (3f3b351)
+
 ## [0.1.65] - 2026-04-10
 
 ## [0.1.65-rc.23] - 2026-04-09
