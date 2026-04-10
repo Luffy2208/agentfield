@@ -1,5 +1,4 @@
 # TODO: source bug — see test_malformed_tool_call_missing_arguments_is_reported_and_loop_continues
-# TODO: source bug — see test_tool_execution_timeout_breaks_loop_early
 
 import asyncio
 import json
@@ -194,10 +193,14 @@ async def test_tool_execution_timeout_breaks_loop_early():
         make_completion=make_completion,
     )
 
-    if make_completion.await_count != 1:
-        pytest.skip("source bug: tool timeouts do not break the loop early")
-
+    assert make_completion.await_count == 1, (
+        f"Expected loop to bail after timeout, but make_completion was called "
+        f"{make_completion.await_count} times"
+    )
     assert trace.total_turns == 1
+    assert len(trace.calls) == 1
+    assert trace.calls[0].error is not None
+    assert "TimeoutError" in trace.calls[0].error
 
 
 @pytest.mark.asyncio
