@@ -502,3 +502,78 @@ async def test_logs_endpoint_success():
             )
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("application/x-ndjson")
+
+
+# ---------------------------------------------------------------------------
+# /debug/tasks endpoint
+#
+# This endpoint exists specifically to diagnose silent litellm deadlocks like
+# the one in PR #384: when py-spy shows all asyncio worker threads idle and
+# the agent is unresponsive, hitting /debug/tasks reveals which coroutines
+# are awaiting which Future. Without this, finding the hang requires
+# attaching py-spy to a production container.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_debug_tasks_endpoint_returns_running_task_stacks():
+    """The endpoint must enumerate all live asyncio.Tasks and include the
+    current task itself in the response."""
+    app = make_agent_app()
+    _setup_server(app)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        resp = await client.get("/debug/tasks")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "count" in body
+    assert "tasks" in body
+    assert isinstance(body["tasks"], list)
+    assert body["count"] == len(body["tasks"])
+    # The HTTP request handler itself runs as an asyncio task → must be present.
+    assert body["count"] >= 1
+    joined = "\n".join(body["tasks"])
+    assert "Task" in joined  # each entry starts with "=== Task ..."
+
+
+@pytest.mark.asyncio
+async def test_debug_tasks_endpoint_captures_pending_coroutines():
+    """If a coroutine is suspended on an awaitable that never resolves, the
+    debug dump must surface it. This is the production scenario the endpoint
+    is designed for: a hung litellm.acompletion call sitting on a Future."""
+    app = make_agent_app()
+    _setup_server(app)
+
+    pending_event = asyncio.Event()  # never set → simulates a hung HTTP read
+
+    async def hung_coroutine():
+        await pending_event.wait()
+
+    hung_task = asyncio.create_task(hung_coroutine(), name="simulated-hung-llm-call")
+    try:
+        # Yield to let the task get scheduled.
+        await asyncio.sleep(0)
+
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.get("/debug/tasks")
+
+        assert resp.status_code == 200
+        body = resp.json()
+        joined = "\n".join(body["tasks"])
+        assert "simulated-hung-llm-call" in joined, (
+            "/debug/tasks must surface tasks suspended on Futures so we can "
+            "diagnose deadlocks in production. Found tasks: "
+            + joined[:500]
+        )
+    finally:
+        pending_event.set()
+        hung_task.cancel()
+        try:
+            await hung_task
+        except (asyncio.CancelledError, BaseException):
+            pass

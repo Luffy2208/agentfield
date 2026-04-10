@@ -57,23 +57,29 @@ def _reset_litellm_http_clients(litellm_module: Any) -> None:
     if litellm_module is None:
         return
     try:
-        # litellm caches AsyncHTTPHandler / HTTPHandler instances in several
-        # module-level attributes. Reset every one we know about; missing
-        # attributes are silently ignored.
+        # Module-level client *instances* — must be replaced with None so the
+        # next call constructs a fresh AsyncHTTPHandler.
         for attr in (
             "module_level_client",
             "module_level_aclient",
             "aclient_session",
             "client_session",
-            "in_memory_llm_clients_cache",
         ):
             if hasattr(litellm_module, attr):
                 try:
-                    val = getattr(litellm_module, attr)
-                    if hasattr(val, "clear") and callable(val.clear):
-                        val.clear()
-                    else:
-                        setattr(litellm_module, attr, None)
+                    setattr(litellm_module, attr, None)
+                except Exception:
+                    pass
+
+        # Dict-like caches — clear in place rather than replacing, since
+        # litellm holds the same dict reference internally.
+        for cache_attr in ("in_memory_llm_clients_cache",):
+            if hasattr(litellm_module, cache_attr):
+                try:
+                    cache = getattr(litellm_module, cache_attr)
+                    clear_fn = getattr(cache, "clear", None)
+                    if callable(clear_fn):
+                        clear_fn()
                 except Exception:
                     pass
 
