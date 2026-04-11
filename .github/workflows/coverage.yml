@@ -3,21 +3,6 @@ name: Coverage Summary
 on:
   merge_group:
   pull_request:
-    paths:
-      - "control-plane/**"
-      - "sdk/**"
-      - "scripts/test-all.sh"
-      - "scripts/coverage-summary.sh"
-      - "scripts/coverage-surface.sh"
-      - "scripts/coverage-aggregate.py"
-      - "scripts/coverage-gate.py"
-      - "scripts/patch-coverage-gate.sh"
-      - ".coverage-gate.toml"
-      - "coverage-baseline.json"
-      - ".github/workflows/coverage.yml"
-      - "docs/COVERAGE.md"
-      - "docs/DEVELOPMENT.md"
-      - ".github/BRANCH_PROTECTION.md"
   push:
     branches: [main]
     paths:
@@ -46,6 +31,38 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------
+  # Path detection: determine whether this PR touches coverage-relevant
+  # files. When it doesn't (e.g. docs-only or examples-only PRs) we skip
+  # the expensive per-surface jobs but still report the required
+  # coverage-summary check as passed.
+  # ---------------------------------------------------------------------
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      has_coverage_files: ${{ steps.filter.outputs.coverage }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            coverage:
+              - 'control-plane/**'
+              - 'sdk/**'
+              - 'scripts/test-all.sh'
+              - 'scripts/coverage-summary.sh'
+              - 'scripts/coverage-surface.sh'
+              - 'scripts/coverage-aggregate.py'
+              - 'scripts/coverage-gate.py'
+              - 'scripts/patch-coverage-gate.sh'
+              - '.coverage-gate.toml'
+              - 'coverage-baseline.json'
+              - '.github/workflows/coverage.yml'
+              - 'docs/COVERAGE.md'
+              - 'docs/DEVELOPMENT.md'
+              - '.github/BRANCH_PROTECTION.md'
+
+  # ---------------------------------------------------------------------
   # Per-surface coverage producers (run in parallel). Each entry runs the
   # test suite for a single surface with coverage enabled via
   # scripts/coverage-surface.sh, then uploads test-reports/coverage/ as an
@@ -58,7 +75,8 @@ jobs:
   # a required status check so a test regression still blocks merge.
   # ---------------------------------------------------------------------
   per-surface:
-    if: github.event_name != 'merge_group'
+    needs: changes
+    if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
     name: coverage (${{ matrix.surface }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -124,23 +142,27 @@ jobs:
   coverage-summary:
     name: coverage-summary
     # Use always() so this job runs even when per-surface is skipped
-    # (merge_group). This ensures the required check always reports a
-    # status instead of being stuck as "Expected".
+    # (merge_group or no coverage-relevant files). This ensures the
+    # required check always reports a status instead of being stuck as
+    # "Expected".
     if: ${{ always() }}
-    needs: per-surface
+    needs: [changes, per-surface]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       # ---------------------------------------------------------------
-      # Merge-queue fast path: coverage already passed on the PR — just
-      # succeed immediately to satisfy the required check.
+      # Fast path: skip heavy coverage work when it's not needed — either
+      # in the merge queue (coverage already passed on the PR) or when the
+      # PR doesn't touch any coverage-relevant files (e.g. docs-only,
+      # examples-only). The job still succeeds so the required check is
+      # satisfied.
       # ---------------------------------------------------------------
-      - name: Skip coverage in merge queue
-        if: github.event_name == 'merge_group'
-        run: echo "Coverage already verified on the pull request — skipping in merge queue."
+      - name: Skip coverage (no relevant changes)
+        if: github.event_name == 'merge_group' || needs.changes.outputs.has_coverage_files != 'true'
+        run: echo "Coverage check skipped — no coverage-relevant files changed or merge queue."
 
       - name: Checkout
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         uses: actions/checkout@v4
         with:
           # Full history so diff-cover can compute patch coverage against
@@ -148,24 +170,24 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install diff-cover (for per-PR patch coverage)
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         run: python -m pip install "diff-cover>=9.0.0"
 
       - name: Download all per-surface artifacts
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         uses: actions/download-artifact@v4
         with:
           path: /tmp/coverage-artifacts
           pattern: coverage-*
 
       - name: Stage artifacts into test-reports/coverage/
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         run: |
           mkdir -p test-reports/coverage
           # Each per-surface artifact lands in its own subdirectory under
@@ -177,15 +199,15 @@ jobs:
           ls -la test-reports/coverage/
 
       - name: Aggregate per-surface coverage
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         run: python3 scripts/coverage-aggregate.py --report-dir test-reports/coverage
 
       - name: Publish coverage summary
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         run: cat test-reports/coverage/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run coverage gate
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         id: gate
         # Thresholds live in .coverage-gate.toml at the repo root so they
         # stay in-version-control and are the single source of truth for
@@ -205,17 +227,17 @@ jobs:
         # untested code shows up here immediately. Output is posted as a
         # second sticky PR comment so reviewers see exactly which files
         # regressed patch coverage.
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.changes.outputs.has_coverage_files == 'true'
         run: |
           ./scripts/patch-coverage-gate.sh
         continue-on-error: true
 
       - name: Save PR metadata for report workflow
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.changes.outputs.has_coverage_files == 'true'
         run: echo '${{ github.event.pull_request.number }}' > test-reports/coverage/pr-number.txt
 
       - name: Upload aggregated coverage artifact
-        if: github.event_name != 'merge_group'
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-summary
@@ -223,7 +245,7 @@ jobs:
           retention-days: 7
 
       - name: Fail the job if any gate failed
-        if: github.event_name != 'merge_group' && (steps.gate.outcome == 'failure' || steps.patch_gate.outcome == 'failure')
+        if: github.event_name != 'merge_group' && needs.changes.outputs.has_coverage_files == 'true' && (steps.gate.outcome == 'failure' || steps.patch_gate.outcome == 'failure')
         run: |
           echo "::error::Coverage gate failed. See the coverage report comment(s) on the PR for details and remediation steps."
           exit 1

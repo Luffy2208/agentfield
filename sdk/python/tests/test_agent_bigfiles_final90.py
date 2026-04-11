@@ -119,11 +119,15 @@ def test_callback_candidate_helpers(monkeypatch):
 
     candidates = _build_callback_candidates("api.example.com", 8001)
     assert candidates[0] == "http://api.example.com:8001"
-    assert "http://callback.internal:8001" in candidates
-    assert "http://svc.railway.internal:8001" in candidates
-    assert "http://198.51.100.20:8001" in candidates
-    assert "http://10.0.0.8:8001" in candidates
-    assert "http://hostbox:8001" in candidates
+    expected_urls = [
+        "http://callback.internal:8001",
+        "http://svc.railway.internal:8001",
+        "http://198.51.100.20:8001",
+        "http://10.0.0.8:8001",
+        "http://hostbox:8001",
+    ]
+    for url in expected_urls:
+        assert any(c == url for c in candidates), f"{url} not found in candidates"
     assert _resolve_callback_url(None, 7777) == "http://callback.internal:7777"
 
 
