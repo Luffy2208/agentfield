@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.67-rc.1] - 2026-04-11
+
+
+### Fixed
+
+- Fix(ci): coverage-summary required check blocks PRs with no code changes
+
+The coverage workflow used `paths:` filter on `pull_request:` trigger,
+so PRs touching only examples/ or docs never triggered it. Since
+coverage-summary is a required status check, these PRs were permanently
+blocked with "Expected - Waiting to be reported."
+
+Fix: remove paths filter from PR trigger, add dorny/paths-filter job to
+detect relevant changes, and skip heavy coverage work (while still
+reporting success) when no coverage-relevant files changed.
+
+Also fix CodeQL alerts #29/#30 (py/incomplete-url-substring-sanitization)
+in test_agent_bigfiles_final90.py by replacing `url in candidates` with
+explicit equality checks via `any()`. (a43412e)
+
 ## [0.1.66] - 2026-04-11
 
 ## [0.1.66-rc.2] - 2026-04-10
