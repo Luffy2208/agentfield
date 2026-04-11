@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.66] - 2026-04-11
+
 ## [0.1.66-rc.2] - 2026-04-10
 
 
