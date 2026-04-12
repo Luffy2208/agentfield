@@ -6,7 +6,7 @@ from agentfield.execution_context import (
     reset_execution_context,
     set_execution_context,
 )
-from agentfield.logger import log_execution, log_info, AgentFieldLogger, LogLevel
+from agentfield.logger import log_execution, log_info, AgentFieldLogger
 
 
 @pytest.mark.unit
@@ -161,7 +161,6 @@ def base_logger(monkeypatch):
     Initializes an AgentFieldLogger with environment overrides to validate 
     core observability and data-handling logic.
     """
-    
     monkeypatch.setenv("AGENTFIELD_LOG_LEVEL", "DEBUG")
     monkeypatch.setenv("AGENTFIELD_LOG_PAYLOADS", "true")
     monkeypatch.setenv("AGENTFIELD_LOG_TRUNCATE", "50")
@@ -173,7 +172,7 @@ def base_logger(monkeypatch):
     return logger
 
 @pytest.mark.unit
-def test_logger_heartbeat_output(base_logger, caplog):
+def test_heartbeat_event(base_logger, caplog):
     base_logger.heartbeat("Agent pulsing", status="nominal")
     assert "Agent pulsing" in caplog.text
 
@@ -204,7 +203,6 @@ def test_logger_network_output(base_logger, caplog):
 
 @pytest.mark.unit
 def test_logger_severity_levels(base_logger, caplog):
-    """Tests warn, error, and critical in one pass to verify multi-line capture"""
     base_logger.warn("Warning msg")
     base_logger.error("Error msg")
     base_logger.critical("Failure msg")
@@ -220,25 +218,42 @@ def test_logger_success_and_setup(base_logger, caplog):
     out = caplog.text
     assert "Operation" in out and "Environment" in out
 
-@pytest.mark.unit
-def test_logger_truncation_logic(base_logger):
-    """Verifies AGENTFIELD_LOG_TRUNCATE env var is respected"""
-    long_msg = "A" * 100
-    truncated = base_logger._truncate_message(long_msg)
-    # 50 limit + '...' suffix
-    assert len(truncated) == 53
-    assert truncated.endswith("...")
+# --- FORMATTING & PAYLOAD EDGE CASES ---
 
 @pytest.mark.unit
-def test_logger_payload_formatting(base_logger):
-    """Verifies AGENTFIELD_LOG_PAYLOADS allows raw data through"""
-    test_data = {"id": "123", "meta": "data"}
-    formatted = base_logger._format_payload(test_data)
-    decoded = json.loads(formatted)
-    assert decoded["id"] == "123"
+def test_truncate_message_at_limit(base_logger):
+    """Verifies message longer than truncate_length -> ends with '...'"""
+    long_msg = "A" * 100
+    truncated = base_logger._truncate_message(long_msg)
+    assert len(truncated) == 53
+    assert truncated.endswith("...")
 
 @pytest.mark.unit
 def test_logger_short_message_handling(base_logger):
     """Verifies that messages under the truncate limit are untouched"""
     msg = "Short"
     assert base_logger._truncate_message(msg) == "Short"
+
+@pytest.mark.unit
+def test_format_payload_hides_by_default(monkeypatch):
+    """Verifies dict -> '[payload hidden]' when flag is false"""
+    monkeypatch.setenv("AGENTFIELD_LOG_PAYLOADS", "false")
+    logger = AgentFieldLogger(name="privacy-test")
+    test_data = {"secret": "key"}
+    formatted = logger._format_payload(test_data)
+    assert formatted == "[payload hidden - set AGENTFIELD_LOG_PAYLOADS=true to show]"
+
+@pytest.mark.unit
+def test_format_payload_shows_when_enabled(base_logger):
+    """Verifies AGENTFIELD_LOG_PAYLOADS=true -> JSON string"""
+    test_data = {"id": "123", "meta": "data"}
+    formatted = base_logger._format_payload(test_data)
+    decoded = json.loads(formatted)
+    assert decoded["id"] == "123"
+
+@pytest.mark.unit
+def test_format_payload_handles_non_serializable(base_logger):
+    """Verifies fallback to str() for objects with no __dict__ or JSON support"""
+    test_data = {1, 2, 3}
+    formatted = base_logger._format_payload(test_data)
+    assert "{1, 2, 3}" in formatted
