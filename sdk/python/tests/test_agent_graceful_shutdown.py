@@ -156,3 +156,24 @@ async def test_graceful_shutdown_force_cancels_tasks_after_timeout(monkeypatch):
         await server._graceful_shutdown(timeout_seconds=0)
 
     assert task.cancelled()
+
+
+@pytest.mark.asyncio
+async def test_track_task_adds_and_removes_task_on_completion():
+    server = AgentServer(make_shutdown_agent())
+    release = asyncio.Event()
+
+    async def worker():
+        await release.wait()
+
+    task = asyncio.create_task(worker())
+    tracked = server._track_task(task)
+
+    assert tracked is task
+    assert task in server._in_flight_tasks
+
+    release.set()
+    await task
+    await asyncio.sleep(0)
+
+    assert task not in server._in_flight_tasks
