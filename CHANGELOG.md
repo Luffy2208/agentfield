@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.68-rc.3] - 2026-04-14
+
+
+### Fixed
+
+- Fix: graceful shutdown tracks and cancels in-flight tasks (#356, #357) (605f8f9)
+
+
+
+### Other
+
+- Removed stale comments (82c0bc2)
+
+
+
+### Testing
+
+- Test: Added unit test for _track_task() (9149c6f)
+
 ## [0.1.68-rc.2] - 2026-04-14
 
 
