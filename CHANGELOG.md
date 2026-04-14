@@ -6,6 +6,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.68-rc.2] - 2026-04-14
+
+
+### Chores
+
+- Chore(deps): bump follow-redirects
+
+Bumps the npm_and_yarn group with 1 update in the /sdk/typescript directory: [follow-redirects](https://github.com/follow-redirects/follow-redirects).
+
+
+Updates `follow-redirects` from 1.15.11 to 1.16.0
+- [Release notes](https://github.com/follow-redirects/follow-redirects/releases)
+- [Commits](https://github.com/follow-redirects/follow-redirects/compare/v1.15.11...v1.16.0)
+
+---
+updated-dependencies:
+- dependency-name: follow-redirects
+  dependency-version: 1.16.0
+  dependency-type: indirect
+  dependency-group: npm_and_yarn
+...
+
+Signed-off-by: dependabot[bot] <support@github.com> (fe6cead)
+
+## [0.1.68-rc.1] - 2026-04-14
+
+
+### Fixed
+
+- Fix(python-sdk): harden pytest tempdir handling (#451) (176db49)
+
+## [0.1.67] - 2026-04-13
+
+## [0.1.67-rc.4] - 2026-04-13
+
+
+### Fixed
+
+- Fix: opencode CLI v1.4+ compatibility — use run subcommand
+
+opencode v1.4+ changed its CLI interface:
+- `-p` flag removed — prompt is now a positional arg to `run`
+- `-c` now means `--continue`, not project directory
+- Model passed via `-m` flag on the `run` subcommand
+
+This caused every open_code runtime execution to fail silently
+(opencode printed help text and exited with no output).
+
+Changes:
+- `opencode` → `opencode run` subcommand
+- `-c <dir>` → `--dir <dir>`
+- `-p <prompt>` → positional arg (last)
+- Model via env var → `-m <model>` flag
+- Add `--dangerously-skip-permissions` for headless execution
+
+Ref: Agent-Field/SWE-AF#45
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (b81f21a)
+
 ## [0.1.67-rc.3] - 2026-04-13
 
 
