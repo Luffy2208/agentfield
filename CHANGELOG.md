@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.68] - 2026-04-14
+
+## [0.1.68-rc.4] - 2026-04-14
+
+
+### Fixed
+
+- Fix(security): add webhook allowlist for trusted internal hosts
+
+The strict SSRF filter rejected legitimate RFC-1918 callbacks inside
+Docker/K8s clusters, breaking the functional test that webhooks back
+to the test-runner container at an internal bridge IP.
+
+Add an allowlist (hosts, wildcards, CIDRs) that bypasses the private-IP
+check for explicitly trusted targets, mirroring the existing
+`serverless_discovery_allowed_hosts` pattern:
+
+- `AGENTFIELD_WEBHOOK_ALLOWED_HOSTS` env var / `webhook_allowed_hosts`
+  YAML field feeds services.SetWebhookAllowedHosts at server startup.
+- Both `ValidateWebhookURL` and `NewSSRFSafeClient`'s DialContext honor
+  the allowlist before applying private-IP rejection.
+- Functional test docker-compose files set the env to "test-runner" so
+  the existing webhook contract test passes without weakening the gate.
+
+Added tests for allowlist parsing, hostname/wildcard/CIDR matching,
+bypass behavior in both validators, dialer error paths, and an
+end-to-end test that loopback traffic flows when 127.0.0.0/8 is
+allowlisted.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (e32ed28)
+
+- Fix(security): prevent SSRF via webhook URL validation (#418)
+
+Webhook URLs (execution webhooks and observability webhooks) were only
+validated for HTTP/HTTPS scheme, allowing users to target internal
+services, cloud metadata endpoints (169.254.169.254), and RFC-1918
+private networks through the server acting as an open proxy.
+
+This adds two layers of defense:
+- Registration-time validation: ValidateWebhookURL rejects URLs
+  pointing to private/loopback/link-local IPs before they are stored.
+- Transport-level enforcement: NewSSRFSafeClient uses a custom
+  DialContext that resolves DNS and rejects private IPs before the
+  TCP connection is established, preventing DNS rebinding attacks.
+
+Closes #418
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (12543c9)
+
 ## [0.1.68-rc.3] - 2026-04-14
 
 
