@@ -352,7 +352,7 @@ def _resolve_callback_url(callback_url: Optional[str], port: int) -> str:
     return f"http://localhost:{port}"
 
 
-class Agent(FastAPI,_AgentSchemaMixin,_AgentDiscoveryMixin,_AgentServerlessMixin,_PauseManager,_AgentVCMixin):
+class Agent(FastAPI,_AgentSchemaMixin,_AgentDiscoveryMixin,_AgentServerlessMixin,_AgentVCMixin):
     """
     AgentField Agent - FastAPI subclass for creating AI agent nodes.
 
