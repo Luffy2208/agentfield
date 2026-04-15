@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.69-rc.1] - 2026-04-15
+
+
+### Chores
+
+- Chore: sync web client package-lock with installed deps
+
+Removes a stale dev-only marker on glob 10.5.0 so the lockfile matches the
+actual install graph (it's pulled in as a runtime dep transitively).
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com> (04901d0)
+
 ## [0.1.68] - 2026-04-14
 
 ## [0.1.68-rc.4] - 2026-04-14
