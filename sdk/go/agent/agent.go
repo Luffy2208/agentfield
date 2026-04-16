@@ -207,11 +207,16 @@ type Config struct {
 
 	// LeaseRefreshInterval controls how frequently the agent refreshes its
 	// lease/heartbeat with the control plane. Optional.
-	// Default: 2m (2 minutes). Valid: any positive time.Duration.
+	// Default: 2m (2 minutes). Valid: any positive time.Duration. This value
+	// is also sent to the control plane as the HeartbeatInterval during node
+	// registration; when zero, the registration falls back to 30s. When
+	// DisableLeaseLoop is true, "0s" is registered instead so the control
+	// plane does not expect heartbeats.
 	LeaseRefreshInterval time.Duration
 
 	// DisableLeaseLoop disables automatic periodic lease refreshes.
-	// Optional. Default: false.
+	// Optional. Default: false. When true, node registration reports
+	// HeartbeatInterval as "0s" to signal that the agent does not heartbeat.
 	DisableLeaseLoop bool
 
 	// Logger is used for agent logging output. Optional.
@@ -681,7 +686,7 @@ func (a *Agent) registerNode(ctx context.Context) error {
 		Skills:    []types.SkillDefinition{},
 		CommunicationConfig: types.CommunicationConfig{
 			Protocols:         []string{"http"},
-			HeartbeatInterval: "0s",
+			HeartbeatInterval: a.registeredHeartbeatInterval(),
 		},
 		HealthStatus:  "healthy",
 		LastHeartbeat: now,
@@ -2182,3 +2187,32 @@ func (a *Agent) shouldGenerateVC(reasoner *Reasoner) bool {
 	}
 	return true
 }
+
+// registeredHeartbeatInterval returns the HeartbeatInterval value sent to
+// the control plane during node registration. When the lease loop is
+// disabled, the agent does not send periodic heartbeats, so we advertise
+// "0s" to signal that behavior accurately rather than registering a
+// cadence the agent does not honor.
+func (a *Agent) registeredHeartbeatInterval() string {
+	if a.cfg.DisableLeaseLoop {
+		return "0s"
+	}
+	return formatHeartbeatInterval(a.cfg.LeaseRefreshInterval)
+}
+
+// formatHeartbeatInterval formats a LeaseRefreshInterval as a Go duration
+// string for the control plane's HeartbeatInterval field. If the interval
+// is zero (which should not happen after NewAgent's default, but guards
+// against direct field construction), it falls back to the documented
+// default so the control plane does not receive "0s".
+func formatHeartbeatInterval(d time.Duration) string {
+	if d <= 0 {
+		return defaultHeartbeatInterval.String()
+	}
+	return d.String()
+}
+
+// defaultHeartbeatInterval is the fallback sent to the control plane when
+// LeaseRefreshInterval is zero. Kept in sync with the LeaseRefreshInterval
+// default applied in NewAgent.
+var defaultHeartbeatInterval = 30 * time.Second
