@@ -6,6 +6,50 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.69-rc.4] - 2026-04-16
+
+
+### Chores
+
+- Chore(deps): bump hono
+
+Bumps the npm_and_yarn group with 1 update in the /examples/benchmarks/100k-scale/mastra-bench directory: [hono](https://github.com/honojs/hono).
+
+
+Updates `hono` from 4.12.12 to 4.12.14
+- [Release notes](https://github.com/honojs/hono/releases)
+- [Commits](https://github.com/honojs/hono/compare/v4.12.12...v4.12.14)
+
+---
+updated-dependencies:
+- dependency-name: hono
+  dependency-version: 4.12.14
+  dependency-type: indirect
+  dependency-group: npm_and_yarn
+...
+
+Signed-off-by: dependabot[bot] <support@github.com> (6cd3f91)
+
+
+
+### Fixed
+
+- Fix(sdk/go): send configured heartbeat interval in node registration
+
+registerNode hardcoded HeartbeatInterval as "0s", masking the
+agent's configured LeaseRefreshInterval from the control plane. The
+control plane uses that field to size presence TTLs and schedule
+lease refresh windows -- receiving "0s" either fell back to an
+undocumented default or marked the node as expired immediately.
+
+Send a.cfg.LeaseRefreshInterval.String() instead, through a helper
+that falls back to 30s when the field is zero (guards callers that
+bypass New's default). When DisableLeaseLoop is true the registered
+value stays "0s" so the control plane does not expect heartbeats
+the agent will not send.
+
+Fixes #439 (25caf47)
+
 ## [0.1.69-rc.3] - 2026-04-15
 
 
