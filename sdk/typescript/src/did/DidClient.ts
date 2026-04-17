@@ -218,6 +218,68 @@ export class DidClient {
     return this.mapExecutionCredential(res.data);
   }
 
+
+  async verifyCredential(vcDocument: any, signature?: string): Promise<any> {
+    const payload: any = {
+      vc_document: vcDocument
+    };
+
+    // Only include signature if explicitly provided
+    if (signature !== undefined) {
+      payload.signature = signature;
+    }
+
+    const res = await this.http.post('/api/v1/did/verify', payload, {
+      headers: this.mergeHeaders()
+    });
+
+    return res.data ?? null;
+  }
+
+
+  async getWorkflowVcChain(workflowId: string): Promise<any> {
+    const res = await this.http.get(
+      `/api/v1/did/workflow/${workflowId}/vc-chain`,
+      {
+        headers: this.mergeHeaders()
+      }
+    );
+
+    return res.data ?? null;
+  }
+
+
+  async createWorkflowVc(workflowId: string,sessionId: string,executionVcIds: string[]): Promise<WorkflowCredential | null> {
+    const payload = {
+      session_id: sessionId,
+      execution_vc_ids: executionVcIds
+    };
+
+    const res = await this.http.post(
+      `/api/v1/did/workflow/${workflowId}/vc`,
+      payload,
+      {
+        headers: this.mergeHeaders()
+      }
+    );
+
+    const vc = res.data ?? null;
+    if (!vc) return null;
+
+    return {
+      workflowId: vc.workflow_id,
+      sessionId: vc.session_id,
+      componentVcs: vc.component_vcs ?? [],
+      workflowVcId: vc.workflow_vc_id,
+      status: vc.status,
+      startTime: vc.start_time,
+      endTime: vc.end_time,
+      totalSteps: vc.total_steps ?? 0,
+      completedSteps: vc.completed_steps ?? 0
+    };
+  }
+
+  
   async exportAuditTrail(filters: AuditTrailFilters = {}): Promise<AuditTrailExport> {
     const res = await this.http.get('/api/v1/did/export/vcs', {
       params: this.cleanFilters(filters),
