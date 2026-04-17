@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.69-rc.6] - 2026-04-17
+
+
+### Chores
+
+- Chore(deps): bump github.com/jackc/pgx/v5
+
+Bumps the go_modules group with 1 update in the /control-plane directory: [github.com/jackc/pgx/v5](https://github.com/jackc/pgx).
+
+
+Updates `github.com/jackc/pgx/v5` from 5.7.5 to 5.9.0
+- [Changelog](https://github.com/jackc/pgx/blob/master/CHANGELOG.md)
+- [Commits](https://github.com/jackc/pgx/compare/v5.7.5...v5.9.0)
+
+---
+updated-dependencies:
+- dependency-name: github.com/jackc/pgx/v5
+  dependency-version: 5.9.0
+  dependency-type: direct:production
+  dependency-group: go_modules
+...
+
+Signed-off-by: dependabot[bot] <support@github.com> (10a0869)
+
 ## [0.1.69-rc.5] - 2026-04-16
 
 
