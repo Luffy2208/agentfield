@@ -567,7 +567,9 @@ class AgentAI:
                     )
 
                 async def _make_call():
-                    timeout = getattr(self.agent.async_config, "llm_call_timeout", 120.0)
+                    timeout = getattr(
+                        self.agent.async_config, "llm_call_timeout", 120.0
+                    )
                     # Ensure litellm/httpx itself enforces the timeout at the
                     # socket level, so cancelled requests don't poison the
                     # connection pool for subsequent calls.
@@ -749,7 +751,9 @@ class AgentAI:
                 hasattr(self.agent, "cost_tracker")
                 and multimodal_response.cost_usd is not None
             ):
-                model_name = getattr(resp, "model", "") or final_config.model or "unknown"
+                model_name = (
+                    getattr(resp, "model", "") or final_config.model or "unknown"
+                )
                 usage = multimodal_response.usage
                 from agentfield.execution_context import get_current_context
 
@@ -767,7 +771,11 @@ class AgentAI:
                 try:
                     json_data = json.loads(str(multimodal_response.text))
                     return schema(**json_data)
-                except (json.JSONDecodeError, ValueError, ValidationError) as parse_error:
+                except (
+                    json.JSONDecodeError,
+                    ValueError,
+                    ValidationError,
+                ) as parse_error:
                     log_error(f"Failed to parse JSON response: {parse_error}")
                     log_debug(f"Raw response: {multimodal_response.text}")
                     json_match = re.search(
@@ -1638,6 +1646,50 @@ class AgentAI:
             voice=voice,
             format=format,
             speed=speed,
+            **kwargs,
+        )
+
+    async def ai_generate_music(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        duration: Optional[int] = None,
+        **kwargs,
+    ) -> "MultimodalResponse":
+        """
+        Generate music from a text prompt.
+
+        Routes to a music-capable media provider (currently OpenRouter with
+        models like google/lyria-3-pro). Returns a MultimodalResponse with
+        generated audio data (48kHz stereo).
+
+        Args:
+            prompt: Text description of the music to generate
+            model: Music model to use (defaults to "google/lyria-3-pro")
+            duration: Duration hint in seconds
+            **kwargs: Provider-specific parameters (e.g., format="wav")
+
+        Returns:
+            MultimodalResponse: Response with .audio containing AudioOutput.
+
+        Examples:
+            result = await app.ai_generate_music("upbeat jazz piano solo")
+            if result.has_audio:
+                result.audio.save("jazz.wav")
+
+            result = await app.ai_generate_music(
+                "calm ambient electronic music",
+                duration=30,
+                format="mp3",
+            )
+        """
+        from agentfield.media_providers import OpenRouterProvider
+
+        provider = OpenRouterProvider(api_key=None)
+        return await provider.generate_music(
+            prompt=prompt,
+            model=model,
+            duration=duration,
             **kwargs,
         )
 

@@ -1482,7 +1482,10 @@ class Agent(FastAPI):
             "preferred": self.base_url,
             "callback_candidates": self.callback_candidates,
             "container": _is_running_in_container(),
-            "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
+            "submitted_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[
+                :-3
+            ]
+            + "Z",
         }
 
         return payload
@@ -2049,9 +2052,7 @@ class Agent(FastAPI):
                 "execution_id": execution_id,
                 "reasoner": reasoner_name,
             }
-            log_error(
-                f"Execution {execution_id} timed out after {reasoner_timeout}s"
-            )
+            log_error(f"Execution {execution_id} timed out after {reasoner_timeout}s")
         except Exception as exc:
             error_details = getattr(exc, "error_details", None)
             payload = {
@@ -3258,6 +3259,42 @@ class Agent(FastAPI):
             voice=voice,
             format=format,
             speed=speed,
+            **kwargs,
+        )
+
+    async def ai_generate_music(  # pragma: no cover - relies on external services
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        duration: Optional[int] = None,
+        **kwargs,
+    ) -> "MultimodalResponse":
+        """
+        Generate music from a text prompt.
+
+        Routes to a music-capable provider (OpenRouter with models like
+        google/lyria-3-pro). Returns a MultimodalResponse with audio data.
+
+        Args:
+            prompt (str): Text description of the music to generate.
+            model (str, optional): Music model to use.
+            duration (int, optional): Duration hint in seconds.
+            **kwargs: Provider-specific parameters (e.g., format="wav").
+
+        Returns:
+            MultimodalResponse: Response with .audio containing AudioOutput.
+
+        Example:
+            ```python
+            result = await app.ai_generate_music("upbeat jazz piano solo")
+            if result.has_audio:
+                result.audio.save("jazz.wav")
+            ```
+        """
+        return await self.ai_handler.ai_generate_music(
+            prompt=prompt,
+            model=model,
+            duration=duration,
             **kwargs,
         )
 
