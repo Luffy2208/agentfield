@@ -24,12 +24,12 @@ from agentfield.multimodal_response import (
 
 # Fal image size presets
 FalImageSize = Literal[
-    "square_hd",      # 1024x1024
-    "square",         # 512x512
-    "portrait_4_3",   # 768x1024
+    "square_hd",  # 1024x1024
+    "square",  # 512x512
+    "portrait_4_3",  # 768x1024
     "portrait_16_9",  # 576x1024
     "landscape_4_3",  # 1024x768
-    "landscape_16_9", # 1024x576
+    "landscape_16_9",  # 1024x576
 ]
 
 
@@ -191,6 +191,7 @@ class FalProvider(MediaProvider):
 
                 if self._api_key:
                     import os
+
                     os.environ["FAL_KEY"] = self._api_key
 
                 self._client = fal_client
@@ -200,9 +201,7 @@ class FalProvider(MediaProvider):
                 )
         return self._client
 
-    def _parse_image_size(
-        self, size: str
-    ) -> Union[str, Dict[str, int]]:
+    def _parse_image_size(self, size: str) -> Union[str, Dict[str, int]]:
         """
         Parse image size into fal format.
 
@@ -214,8 +213,12 @@ class FalProvider(MediaProvider):
         """
         # Check if it's a fal preset
         fal_presets = {
-            "square_hd", "square", "portrait_4_3", "portrait_16_9",
-            "landscape_4_3", "landscape_16_9"
+            "square_hd",
+            "square",
+            "portrait_4_3",
+            "portrait_16_9",
+            "landscape_4_3",
+            "landscape_16_9",
         }
         if size in fal_presets:
             return size
@@ -346,6 +349,7 @@ class FalProvider(MediaProvider):
 
         except Exception as e:
             from agentfield.logger import log_error
+
             log_error(f"Fal image generation failed: {e}")
             raise
 
@@ -434,6 +438,7 @@ class FalProvider(MediaProvider):
 
         except Exception as e:
             from agentfield.logger import log_error
+
             log_error(f"Fal audio generation failed: {e}")
             raise
 
@@ -532,6 +537,7 @@ class FalProvider(MediaProvider):
 
         except Exception as e:
             from agentfield.logger import log_error
+
             log_error(f"Fal video generation failed: {e}")
             raise
 
@@ -587,6 +593,7 @@ class FalProvider(MediaProvider):
 
         except Exception as e:
             from agentfield.logger import log_error
+
             log_error(f"Fal transcription failed: {e}")
             raise
 
@@ -730,9 +737,14 @@ class OpenRouterProvider(MediaProvider):
         model: Optional[str] = None,
         size: str = "1024x1024",
         quality: str = "standard",
+        image_config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> MultimodalResponse:
-        """Generate image using OpenRouter's chat completions API."""
+        """Generate image using OpenRouter's chat completions API.
+
+        Note: image_config is an OpenRouter-specific extension not present
+        in the base MediaProvider.generate_image() interface.
+        """
         from agentfield import vision
 
         model = model or "openrouter/google/gemini-2.5-flash-image-preview"
@@ -748,6 +760,7 @@ class OpenRouterProvider(MediaProvider):
             quality=quality,
             style=None,
             response_format="url",
+            image_config=image_config,
             **kwargs,
         )
 
