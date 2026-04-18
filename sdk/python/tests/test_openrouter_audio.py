@@ -53,23 +53,31 @@ def _audio_event(b64_chunk: str = "", transcript: str = "") -> dict:
     return {"choices": [{"delta": {"audio": audio}}]}
 
 
+class _FakeContent:
+    """Fake aiohttp StreamReader supporting readline()."""
+
+    def __init__(self, lines: list[bytes]):
+        self._lines = list(lines)
+        self._index = 0
+
+    async def readline(self) -> bytes:
+        if self._index >= len(self._lines):
+            return b""
+        line = self._lines[self._index]
+        self._index += 1
+        return line
+
+
 class _FakeStreamResponse:
-    """Fake aiohttp response supporting async iteration over content lines."""
+    """Fake aiohttp response supporting readline-based SSE parsing."""
 
     def __init__(self, lines: list[bytes], status: int = 200):
         self.status = status
         self._lines = lines
-        self.content = self
+        self.content = _FakeContent(lines)
 
     async def text(self):
         return "error"
-
-    def __aiter__(self):
-        return self._iter_lines()
-
-    async def _iter_lines(self):
-        for line in self._lines:
-            yield line
 
     async def __aenter__(self):
         return self
@@ -81,8 +89,10 @@ class _FakeStreamResponse:
 class _FakeSession:
     """Fake aiohttp.ClientSession."""
 
-    def __init__(self, response: _FakeStreamResponse):
+    def __init__(self, response: _FakeStreamResponse, **kwargs):
         self._response = response
+        # Accept timeout and other kwargs like real ClientSession
+        self._init_kwargs = kwargs
 
     def post(self, url, **kwargs):
         self._last_post_kwargs = kwargs
@@ -326,23 +336,18 @@ class TestOpenRouterGenerateAudio:
 class TestGenerateMusic:
     """Tests for music generation."""
 
-    def test_abc_generate_music_raises_not_implemented(self):
+    @pytest.mark.asyncio
+    async def test_abc_generate_music_raises_not_implemented(self):
         """MediaProvider.generate_music should raise NotImplementedError by default."""
         # FalProvider and LiteLLMProvider don't override generate_music
         fal = FalProvider()
         litellm_p = LiteLLMProvider()
 
         with pytest.raises(NotImplementedError, match="does not support music"):
-            import asyncio
-
-            asyncio.get_event_loop().run_until_complete(fal.generate_music("test"))
+            await fal.generate_music("test")
 
         with pytest.raises(NotImplementedError, match="does not support music"):
-            import asyncio
-
-            asyncio.get_event_loop().run_until_complete(
-                litellm_p.generate_music("test")
-            )
+            await litellm_p.generate_music("test")
 
     @pytest.mark.asyncio
     async def test_openrouter_generate_music_streams(self, monkeypatch):
@@ -454,7 +459,7 @@ class TestAgentAIGenerateMusic:
 
     @pytest.mark.asyncio
     async def test_ai_generate_music_delegates_to_provider(self, monkeypatch):
-        """ai_generate_music should delegate to OpenRouterProvider.generate_music."""
+        """ai_generate_music should delegate to cached OpenRouterProvider.generate_music."""
         expected = MultimodalResponse(
             text="music",
             audio=AudioOutput(data="AAAA", format="wav"),
@@ -463,16 +468,17 @@ class TestAgentAIGenerateMusic:
         )
         mock_generate = AsyncMock(return_value=expected)
 
-        with patch("agentfield.media_providers.OpenRouterProvider") as MockProvider:
-            mock_instance = MagicMock()
-            mock_instance.generate_music = mock_generate
-            MockProvider.return_value = mock_instance
+        agent = StubAgent()
+        ai = AgentAI(agent)
 
-            agent = StubAgent()
-            ai = AgentAI(agent)
-            result = await ai.ai_generate_music(
-                prompt="jazz", model="google/lyria-3-pro", duration=15
-            )
+        # Inject a mock into the cached provider slot
+        mock_provider = MagicMock()
+        mock_provider.generate_music = mock_generate
+        ai._openrouter_provider_instance = mock_provider
+
+        result = await ai.ai_generate_music(
+            prompt="jazz", model="google/lyria-3-pro", duration=15
+        )
 
         mock_generate.assert_called_once_with(
             prompt="jazz", model="google/lyria-3-pro", duration=15

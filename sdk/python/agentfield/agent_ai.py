@@ -154,6 +154,7 @@ class AgentAI:
         self._initialization_complete = False
         self._rate_limiter = None
         self._fal_provider_instance = None
+        self._openrouter_provider_instance = None
         self._media_router_instance = None
 
     @property
@@ -173,6 +174,20 @@ class AgentAI:
         return self._fal_provider_instance
 
     @property
+    def _openrouter_provider(self):
+        """
+        Lazy-initialized OpenRouter provider for audio, music, and image generation.
+
+        Returns:
+            OpenRouterProvider: Configured OpenRouter provider instance
+        """
+        if self._openrouter_provider_instance is None:
+            from agentfield.media_providers import OpenRouterProvider
+
+            self._openrouter_provider_instance = OpenRouterProvider()
+        return self._openrouter_provider_instance
+
+    @property
     def _media_router(self):
         """
         Lazy-initialized MediaRouter for prefix-based provider dispatch.
@@ -181,13 +196,13 @@ class AgentAI:
             MediaRouter: Configured router with fal, openrouter, and litellm providers
         """
         if self._media_router_instance is None:
-            from agentfield.media_providers import LiteLLMProvider, OpenRouterProvider
+            from agentfield.media_providers import LiteLLMProvider
             from agentfield.media_router import MediaRouter
 
             router = MediaRouter()
             router.register("fal-ai/", self._fal_provider)
             router.register("fal/", self._fal_provider)
-            router.register("openrouter/", OpenRouterProvider())
+            router.register("openrouter/", self._openrouter_provider)
             router.register("", LiteLLMProvider())  # catch-all fallback
             self._media_router_instance = router
         return self._media_router_instance
@@ -1150,9 +1165,7 @@ class AgentAI:
         try:
             provider = self._media_router.resolve(model, "audio")
             if provider.name == "fal":
-                text_input = " ".join(
-                    str(arg) for arg in args if isinstance(arg, str)
-                )
+                text_input = " ".join(str(arg) for arg in args if isinstance(arg, str))
                 if not text_input:
                     text_input = "Hello, this is a test audio message."
                 return await provider.generate_audio(
@@ -1683,10 +1696,7 @@ class AgentAI:
                 format="mp3",
             )
         """
-        from agentfield.media_providers import OpenRouterProvider
-
-        provider = OpenRouterProvider(api_key=None)
-        return await provider.generate_music(
+        return await self._openrouter_provider.generate_music(
             prompt=prompt,
             model=model,
             duration=duration,

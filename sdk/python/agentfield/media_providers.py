@@ -747,6 +747,9 @@ class LiteLLMProvider(MediaProvider):
 
 
 MAX_VIDEO_BYTES = 500 * 1024 * 1024  # 500 MB hard limit for video downloads
+MAX_AUDIO_B64_BYTES = (
+    500 * 1024 * 1024
+)  # 500 MB hard limit for accumulated audio base64
 
 
 class OpenRouterProvider(MediaProvider):
@@ -921,9 +924,7 @@ class OpenRouterProvider(MediaProvider):
                     f"OpenRouter video submit returned no job id: {submit_data}"
                 )
             if not re.match(r"^[a-zA-Z0-9_-]+$", job_id):
-                raise RuntimeError(
-                    f"OpenRouter returned invalid job id: {job_id!r}"
-                )
+                raise RuntimeError(f"OpenRouter returned invalid job id: {job_id!r}")
 
             # Step 2: Poll for completion
             poll_url = f"{base_url}/videos/{job_id}"
@@ -1048,6 +1049,88 @@ class OpenRouterProvider(MediaProvider):
             cost_usd=cost,
         )
 
+    async def _stream_openrouter_audio(
+        self,
+        payload: Dict[str, Any],
+        headers: Dict[str, str],
+        *,
+        timeout: float = 300.0,
+        label: str = "audio",
+    ) -> tuple:
+        """
+        Shared SSE streaming helper for audio and music generation.
+
+        Handles: SSE line-delimited parsing via readline(), chunk accumulation
+        with size limit, timeout, and error truncation.
+
+        Args:
+            payload: JSON body for the chat completions request
+            headers: HTTP headers including Authorization
+            timeout: Total request timeout in seconds (default 300)
+            label: Label for error messages ("audio" or "music")
+
+        Returns:
+            Tuple of (b64_data: str, transcript: str)
+        """
+        import json as json_mod
+
+        import aiohttp
+
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
+
+        b64_chunks: list = []
+        transcript_parts: list = []
+        total_size = 0
+
+        async with aiohttp.ClientSession(timeout=client_timeout) as session:
+            async with session.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                json=payload,
+                headers=headers,
+            ) as resp:
+                if resp.status != 200:
+                    body = await resp.text()
+                    raise RuntimeError(
+                        f"OpenRouter {label} request failed ({resp.status}): "
+                        f"{body[:500]}"
+                    )
+
+                while True:
+                    line = await resp.content.readline()
+                    if not line:
+                        break
+                    decoded = line.decode("utf-8", errors="replace").strip()
+                    if not decoded.startswith("data: "):
+                        continue
+                    data_str = decoded[len("data: ") :]
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        event = json_mod.loads(data_str)
+                    except json_mod.JSONDecodeError:
+                        continue
+
+                    choices = event.get("choices", [])
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
+                    audio_delta = delta.get("audio", {})
+                    if audio_delta.get("data"):
+                        chunk = audio_delta["data"]
+                        total_size += len(chunk)
+                        if total_size > MAX_AUDIO_B64_BYTES:
+                            raise RuntimeError(
+                                f"Audio base64 data exceeded "
+                                f"{MAX_AUDIO_B64_BYTES} byte limit"
+                            )
+                        b64_chunks.append(chunk)
+                    if audio_delta.get("transcript"):
+                        transcript_parts.append(audio_delta["transcript"])
+
+        b64_full = "".join(b64_chunks)
+        transcript = "".join(transcript_parts)
+        return b64_full, transcript
+
     async def generate_audio(
         self,
         text: str,
@@ -1067,15 +1150,12 @@ class OpenRouterProvider(MediaProvider):
             model: OpenRouter model ID (e.g., "openai/gpt-4o-mini-tts")
             voice: Voice identifier (alloy, echo, fable, onyx, nova, shimmer)
             format: Audio format (wav, mp3, flac, opus, pcm16)
-            **kwargs: Additional parameters
+            **kwargs: Additional parameters (timeout overrides default 300s)
 
         Returns:
             MultimodalResponse with generated audio
         """
-        import json as json_mod
         import os
-
-        import aiohttp
 
         api_key = self._api_key or os.environ.get("OPENROUTER_API_KEY", "")
         if not api_key:
@@ -1092,15 +1172,18 @@ class OpenRouterProvider(MediaProvider):
         if voice not in supported_voices:
             voice = "alloy"
 
+        audio_format = format
         supported_formats = {"wav", "mp3", "flac", "opus", "pcm16"}
-        if format not in supported_formats:
-            format = "wav"
+        if audio_format not in supported_formats:
+            audio_format = "wav"
+
+        timeout = kwargs.pop("timeout", 300.0)
 
         payload = {
             "model": send_model,
             "messages": [{"role": "user", "content": text}],
             "modalities": ["text", "audio"],
-            "audio": {"voice": voice, "format": format},
+            "audio": {"voice": voice, "format": audio_format},
             "stream": True,
         }
 
@@ -1109,50 +1192,13 @@ class OpenRouterProvider(MediaProvider):
             "Content-Type": "application/json",
         }
 
-        b64_chunks: list = []
-        transcript_parts: list = []
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                json=payload,
-                headers=headers,
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(
-                        f"OpenRouter audio request failed ({resp.status}): {body}"
-                    )
-
-                async for line in resp.content:
-                    decoded = line.decode("utf-8", errors="replace").strip()
-                    if not decoded.startswith("data: "):
-                        continue
-                    data_str = decoded[len("data: ") :]
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        event = json_mod.loads(data_str)
-                    except json_mod.JSONDecodeError:
-                        continue
-
-                    choices = event.get("choices", [])
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    audio_delta = delta.get("audio", {})
-                    if audio_delta.get("data"):
-                        b64_chunks.append(audio_delta["data"])
-                    if audio_delta.get("transcript"):
-                        transcript_parts.append(audio_delta["transcript"])
-
-        # Concatenate base64 chunks and decode once
-        b64_full = "".join(b64_chunks)
-        transcript = "".join(transcript_parts)
+        b64_full, transcript = await self._stream_openrouter_audio(
+            payload, headers, timeout=timeout, label="audio"
+        )
 
         audio_output = AudioOutput(
             data=b64_full if b64_full else None,
-            format=format,
+            format=audio_format,
             url=None,
         )
 
@@ -1180,16 +1226,13 @@ class OpenRouterProvider(MediaProvider):
         Args:
             prompt: Text description of the music to generate
             model: Music model (defaults to "google/lyria-3-pro")
-            duration: Duration hint in seconds (passed in prompt context)
-            **kwargs: Additional parameters
+            duration: Duration hint in seconds (must be >0 and <=600)
+            **kwargs: Additional parameters (timeout overrides default 300s)
 
         Returns:
             MultimodalResponse with generated audio (48kHz stereo)
         """
-        import json as json_mod
         import os
-
-        import aiohttp
 
         api_key = self._api_key or os.environ.get("OPENROUTER_API_KEY", "")
         if not api_key:
@@ -1201,12 +1244,18 @@ class OpenRouterProvider(MediaProvider):
         if send_model.startswith("openrouter/"):
             send_model = send_model[len("openrouter/") :]
 
+        # Validate duration
+        if duration is not None:
+            if duration <= 0 or duration > 600:
+                raise ValueError(f"duration must be > 0 and <= 600, got {duration}")
+
         # Build the user message with optional duration hint
         user_content = prompt
         if duration is not None:
             user_content = f"{prompt} (duration: {duration} seconds)"
 
         audio_format = kwargs.pop("format", "wav")
+        timeout = kwargs.pop("timeout", 300.0)
 
         payload = {
             "model": send_model,
@@ -1221,45 +1270,9 @@ class OpenRouterProvider(MediaProvider):
             "Content-Type": "application/json",
         }
 
-        b64_chunks: list = []
-        transcript_parts: list = []
-
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                json=payload,
-                headers=headers,
-            ) as resp:
-                if resp.status != 200:
-                    body = await resp.text()
-                    raise RuntimeError(
-                        f"OpenRouter music request failed ({resp.status}): {body}"
-                    )
-
-                async for line in resp.content:
-                    decoded = line.decode("utf-8", errors="replace").strip()
-                    if not decoded.startswith("data: "):
-                        continue
-                    data_str = decoded[len("data: ") :]
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        event = json_mod.loads(data_str)
-                    except json_mod.JSONDecodeError:
-                        continue
-
-                    choices = event.get("choices", [])
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    audio_delta = delta.get("audio", {})
-                    if audio_delta.get("data"):
-                        b64_chunks.append(audio_delta["data"])
-                    if audio_delta.get("transcript"):
-                        transcript_parts.append(audio_delta["transcript"])
-
-        b64_full = "".join(b64_chunks)
-        transcript = "".join(transcript_parts)
+        b64_full, transcript = await self._stream_openrouter_audio(
+            payload, headers, timeout=timeout, label="music"
+        )
 
         audio_output = AudioOutput(
             data=b64_full if b64_full else None,
