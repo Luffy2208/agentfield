@@ -154,6 +154,7 @@ class AgentAI:
         self._initialization_complete = False
         self._rate_limiter = None
         self._fal_provider_instance = None
+        self._media_router_instance = None
 
     @property
     def _fal_provider(self):
@@ -170,6 +171,26 @@ class AgentAI:
                 api_key=self.agent.ai_config.fal_api_key
             )
         return self._fal_provider_instance
+
+    @property
+    def _media_router(self):
+        """
+        Lazy-initialized MediaRouter for prefix-based provider dispatch.
+
+        Returns:
+            MediaRouter: Configured router with fal, openrouter, and litellm providers
+        """
+        if self._media_router_instance is None:
+            from agentfield.media_providers import LiteLLMProvider, OpenRouterProvider
+            from agentfield.media_router import MediaRouter
+
+            router = MediaRouter()
+            router.register("fal-ai/", self._fal_provider)
+            router.register("fal/", self._fal_provider)
+            router.register("openrouter/", OpenRouterProvider())
+            router.register("", LiteLLMProvider())  # catch-all fallback
+            self._media_router_instance = router
+        return self._media_router_instance
 
     def _get_rate_limiter(self) -> StatelessRateLimiter:
         """
@@ -1117,20 +1138,24 @@ class AgentAI:
                 self.agent.ai_config.audio_model
             )  # Use configured audio model (defaults to tts-1)
 
-        # Route based on model prefix - Fal TTS models
-        if model.startswith("fal-ai/") or model.startswith("fal/"):
-            # Combine all text inputs
-            text_input = " ".join(str(arg) for arg in args if isinstance(arg, str))
-            if not text_input:
-                text_input = "Hello, this is a test audio message."
-
-            return await self._fal_provider.generate_audio(
-                text=text_input,
-                model=model,
-                voice=voice,
-                format=format,
-                **kwargs,
-            )
+        # Try media router for fal models
+        try:
+            provider = self._media_router.resolve(model, "audio")
+            if provider.name == "fal":
+                text_input = " ".join(
+                    str(arg) for arg in args if isinstance(arg, str)
+                )
+                if not text_input:
+                    text_input = "Hello, this is a test audio message."
+                return await provider.generate_audio(
+                    text=text_input,
+                    model=model,
+                    voice=voice,
+                    format=format,
+                    **kwargs,
+                )
+        except ValueError:
+            pass  # Fall through to existing logic
 
         # Check if mode="openai_direct" is specified
         if mode == "openai_direct":
@@ -1393,44 +1418,26 @@ class AgentAI:
             # Get base64 data directly
             result = await agent.ai_with_vision("A sunset", response_format="b64_json")
         """
-        from agentfield import vision
-
         # Use image generation model if not specified
         if model is None:
             model = "dall-e-3"  # Default image model
 
-        # Route based on model prefix
-        if model.startswith("fal-ai/") or model.startswith("fal/"):
-            # Fal: Use FalProvider for Flux, SDXL, Recraft, etc.
-            return await self._fal_provider.generate_image(
-                prompt=prompt,
-                model=model,
-                size=size,
-                quality=quality,
-                **kwargs,
-            )
-        elif model.startswith("openrouter/"):
-            # OpenRouter: Use chat completions API with image modality
-            return await vision.generate_image_openrouter(
-                prompt=prompt,
-                model=model,
-                size=size,
-                quality=quality,
-                style=style,
-                response_format=response_format,
-                **kwargs,
-            )
-        else:
-            # LiteLLM: Use image generation API
-            return await vision.generate_image_litellm(
-                prompt=prompt,
-                model=model,
-                size=size,
-                quality=quality,
-                style=style,
-                response_format=response_format,
-                **kwargs,
-            )
+        # Route via MediaRouter (longest-prefix match)
+        provider = self._media_router.resolve(model, "image")
+
+        # Pass style/response_format for providers that support them
+        if style is not None:
+            kwargs["style"] = style
+        if response_format is not None:
+            kwargs["response_format"] = response_format
+
+        return await provider.generate_image(
+            prompt=prompt,
+            model=model,
+            size=size,
+            quality=quality,
+            **kwargs,
+        )
 
     async def ai_with_multimodal(
         self,
@@ -1688,14 +1695,9 @@ class AgentAI:
         if model is None:
             model = self.agent.ai_config.video_model
 
-        # Currently only Fal supports video generation
-        if not (model.startswith("fal-ai/") or model.startswith("fal/")):
-            raise ValueError(
-                f"Video generation currently only supports Fal.ai models. "
-                f"Use models like 'fal-ai/minimax-video/image-to-video'. Got: {model}"
-            )
-
-        return await self._fal_provider.generate_video(
+        # Route via MediaRouter (longest-prefix match)
+        provider = self._media_router.resolve(model, "video")
+        return await provider.generate_video(
             prompt=prompt,
             model=model,
             image_url=image_url,

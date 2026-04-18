@@ -344,7 +344,10 @@ class TestAgentAIProviderRouting:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.generate_image = mock_generate
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         result = await ai.ai_with_vision(
             prompt="A sunset",
@@ -370,7 +373,10 @@ class TestAgentAIProviderRouting:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.generate_image = mock_generate
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         await ai.ai_with_vision(
             prompt="A sunset",
@@ -395,7 +401,10 @@ class TestAgentAIProviderRouting:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.generate_audio = mock_generate
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         result = await ai.ai_with_audio(
             "Hello world",
@@ -430,7 +439,10 @@ class TestAIGenerateVideo:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.generate_video = mock_generate
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         await ai.ai_generate_video(prompt="A cat playing")
 
@@ -455,7 +467,10 @@ class TestAIGenerateVideo:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.generate_video = mock_generate
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         await ai.ai_generate_video(
             prompt="Camera pans",
@@ -471,7 +486,7 @@ class TestAIGenerateVideo:
         """ai_generate_video should reject non-Fal models."""
         ai = AgentAI(agent_with_ai)
 
-        with pytest.raises(ValueError, match="only supports Fal.ai models"):
+        with pytest.raises(ValueError, match="No provider"):
             await ai.ai_generate_video(
                 prompt="A cat",
                 model="openai/video-model",
@@ -497,7 +512,10 @@ class TestAITranscribeAudio:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.transcribe_audio = mock_transcribe
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         result = await ai.ai_transcribe_audio(
             audio_url="https://example.com/audio.mp3"
@@ -518,7 +536,10 @@ class TestAITranscribeAudio:
         # Patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.transcribe_audio = mock_transcribe
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         await ai.ai_transcribe_audio(
             audio_url="https://example.com/spanish.mp3",
@@ -568,7 +589,10 @@ class TestUnifiedMultimodalUX:
         # Setup mocks - patch the instance attribute directly
         mock_provider = MagicMock()
         mock_provider.generate_image = mock_fal_generate
+        mock_provider.supported_modalities = ["image", "audio", "video"]
+        mock_provider.name = "fal"
         ai._fal_provider_instance = mock_provider
+        ai._media_router_instance = None
 
         # Test fal-ai/ prefix
         await ai.ai_with_vision(prompt="test", model="fal-ai/flux/dev")
