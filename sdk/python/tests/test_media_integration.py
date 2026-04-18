@@ -364,19 +364,13 @@ class TestOpenRouterAudioE2E:
 
         mock_resp = AsyncMock()
         mock_resp.status = 200
-        mock_resp.content = AsyncMock()
+        mock_resp.content = MagicMock()
 
-        line_index = 0
+        async def fake_iter_any():
+            for line in sse_lines:
+                yield line
 
-        async def fake_readline():
-            nonlocal line_index
-            if line_index < len(sse_lines):
-                line = sse_lines[line_index]
-                line_index += 1
-                return line
-            return b""
-
-        mock_resp.content.readline = fake_readline
+        mock_resp.content.iter_any = fake_iter_any
 
         mock_session = AsyncMock()
 
@@ -428,19 +422,13 @@ class TestOpenRouterMusicE2E:
 
         mock_resp = AsyncMock()
         mock_resp.status = 200
-        mock_resp.content = AsyncMock()
+        mock_resp.content = MagicMock()
 
-        line_index = 0
+        async def fake_iter_any():
+            for line in sse_lines:
+                yield line
 
-        async def fake_readline():
-            nonlocal line_index
-            if line_index < len(sse_lines):
-                line = sse_lines[line_index]
-                line_index += 1
-                return line
-            return b""
-
-        mock_resp.content.readline = fake_readline
+        mock_resp.content.iter_any = fake_iter_any
 
         mock_session = AsyncMock()
         post_cm = AsyncMock()

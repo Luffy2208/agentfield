@@ -54,18 +54,14 @@ def _audio_event(b64_chunk: str = "", transcript: str = "") -> dict:
 
 
 class _FakeContent:
-    """Fake aiohttp StreamReader supporting readline()."""
+    """Fake aiohttp StreamReader supporting iter_any()."""
 
     def __init__(self, lines: list[bytes]):
         self._lines = list(lines)
-        self._index = 0
 
-    async def readline(self) -> bytes:
-        if self._index >= len(self._lines):
-            return b""
-        line = self._lines[self._index]
-        self._index += 1
-        return line
+    async def iter_any(self):
+        for line in self._lines:
+            yield line
 
 
 class _FakeStreamResponse:
