@@ -1078,6 +1078,12 @@ class OpenRouterProvider(MediaProvider):
 
         client_timeout = aiohttp.ClientTimeout(total=timeout)
 
+        # Music models can send very large SSE lines (>128KB of base64
+        # audio data per chunk), exceeding aiohttp's default 64KB
+        # readline limit.  We read raw chunks and split on newlines
+        # ourselves to avoid LineTooLong errors.
+        _CHUNK_SIZE = 256 * 1024  # 256 KB read chunks
+
         b64_chunks: list = []
         transcript_parts: list = []
         total_size = 0
@@ -1095,37 +1101,47 @@ class OpenRouterProvider(MediaProvider):
                         f"{body[:500]}"
                     )
 
-                while True:
-                    line = await resp.content.readline()
-                    if not line:
+                # Manual SSE line parsing to handle arbitrarily long lines
+                buf = b""
+                done = False
+                async for raw_chunk in resp.content.iter_any():
+                    if done:
                         break
-                    decoded = line.decode("utf-8", errors="replace").strip()
-                    if not decoded.startswith("data: "):
-                        continue
-                    data_str = decoded[len("data: ") :]
-                    if data_str == "[DONE]":
-                        break
-                    try:
-                        event = json_mod.loads(data_str)
-                    except json_mod.JSONDecodeError:
-                        continue
+                    buf += raw_chunk
+                    while b"\n" in buf:
+                        raw_line, buf = buf.split(b"\n", 1)
+                        decoded = raw_line.decode(
+                            "utf-8", errors="replace"
+                        ).strip()
+                        if not decoded.startswith("data: "):
+                            continue
+                        data_str = decoded[len("data: ") :]
+                        if data_str == "[DONE]":
+                            done = True
+                            break
+                        try:
+                            event = json_mod.loads(data_str)
+                        except json_mod.JSONDecodeError:
+                            continue
 
-                    choices = event.get("choices", [])
-                    if not choices:
-                        continue
-                    delta = choices[0].get("delta", {})
-                    audio_delta = delta.get("audio", {})
-                    if audio_delta.get("data"):
-                        chunk = audio_delta["data"]
-                        total_size += len(chunk)
-                        if total_size > MAX_AUDIO_B64_BYTES:
-                            raise RuntimeError(
-                                f"Audio base64 data exceeded "
-                                f"{MAX_AUDIO_B64_BYTES} byte limit"
+                        choices = event.get("choices", [])
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta", {})
+                        audio_delta = delta.get("audio", {})
+                        if audio_delta.get("data"):
+                            chunk = audio_delta["data"]
+                            total_size += len(chunk)
+                            if total_size > MAX_AUDIO_B64_BYTES:
+                                raise RuntimeError(
+                                    f"Audio base64 data exceeded "
+                                    f"{MAX_AUDIO_B64_BYTES} byte limit"
+                                )
+                            b64_chunks.append(chunk)
+                        if audio_delta.get("transcript"):
+                            transcript_parts.append(
+                                audio_delta["transcript"]
                             )
-                        b64_chunks.append(chunk)
-                    if audio_delta.get("transcript"):
-                        transcript_parts.append(audio_delta["transcript"])
 
         b64_full = "".join(b64_chunks)
         transcript = "".join(transcript_parts)

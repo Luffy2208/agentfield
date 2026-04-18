@@ -227,7 +227,7 @@ func TestOpenRouterGenerateAudio(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Hello", resp.Text)
 	require.NotNil(t, resp.Audio)
-	assert.Equal(t, "wav", resp.Audio.Format)
+	assert.Equal(t, "pcm16", resp.Audio.Format)
 	assert.NotEmpty(t, resp.Audio.Data)
 }
 

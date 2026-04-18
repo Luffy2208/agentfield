@@ -297,14 +297,18 @@ func (p *OpenRouterMediaProvider) GenerateImage(ctx context.Context, req ImageRe
 		return nil, fmt.Errorf("image generation error (%d): %s", resp.StatusCode, string(respBody))
 	}
 
+	// Content can be null, a string, or an array of content parts depending on the model.
+	// Some models (Gemini) return images in message.images[] instead of content.
 	var chatResp struct {
 		Choices []struct {
 			Message struct {
-				Content []struct {
-					Type    string `json:"type"`
-					Text    string `json:"text,omitempty"`
-					B64JSON string `json:"b64_json,omitempty"`
-				} `json:"content"`
+				Content json.RawMessage `json:"content"`
+				Images  []struct {
+					Type     string `json:"type"`
+					ImageURL struct {
+						URL string `json:"url"`
+					} `json:"image_url"`
+				} `json:"images,omitempty"`
 			} `json:"message"`
 		} `json:"choices"`
 	}
@@ -312,16 +316,62 @@ func (p *OpenRouterMediaProvider) GenerateImage(ctx context.Context, req ImageRe
 		return nil, fmt.Errorf("parse image response: %w", err)
 	}
 
+	type contentPart struct {
+		Type    string `json:"type"`
+		Text    string `json:"text,omitempty"`
+		B64JSON string `json:"b64_json,omitempty"`
+	}
+
 	result := &MediaResponse{RawResponse: json.RawMessage(respBody)}
 	for _, choice := range chatResp.Choices {
-		for _, part := range choice.Message.Content {
-			switch part.Type {
-			case "text":
-				result.Text = part.Text
-			case "image_url", "image":
-				result.Images = append(result.Images, ImageData{
-					B64JSON: part.B64JSON,
-				})
+		raw := choice.Message.Content
+
+		// Parse content field (can be null, string, or array of parts)
+		if len(raw) > 0 && string(raw) != "null" {
+			// Try array of content parts first
+			var parts []contentPart
+			if err := json.Unmarshal(raw, &parts); err == nil {
+				for _, part := range parts {
+					switch part.Type {
+					case "text":
+						result.Text = part.Text
+					case "image_url", "image":
+						result.Images = append(result.Images, ImageData{
+							B64JSON: part.B64JSON,
+						})
+					}
+				}
+			} else {
+				// Fall back to plain string (some models return content as a string with inline base64)
+				var textContent string
+				if err := json.Unmarshal(raw, &textContent); err == nil {
+					result.Text = textContent
+					if idx := strings.Index(textContent, "data:image/"); idx >= 0 {
+						if b64Start := strings.Index(textContent[idx:], "base64,"); b64Start >= 0 {
+							b64Data := textContent[idx+b64Start+7:]
+							if end := strings.IndexAny(b64Data, ")\n\r\t "); end >= 0 {
+								b64Data = b64Data[:end]
+							}
+							result.Images = append(result.Images, ImageData{B64JSON: b64Data})
+						}
+					}
+				}
+			}
+		}
+
+		// Handle images returned in message.images[] (Gemini-style: content=null, images=[...])
+		for _, img := range choice.Message.Images {
+			imgData := ImageData{}
+			url := img.ImageURL.URL
+			if strings.HasPrefix(url, "data:image/") {
+				if b64Start := strings.Index(url, "base64,"); b64Start >= 0 {
+					imgData.B64JSON = url[b64Start+7:]
+				}
+			} else if url != "" {
+				imgData.URL = url
+			}
+			if imgData.B64JSON != "" || imgData.URL != "" {
+				result.Images = append(result.Images, imgData)
 			}
 		}
 	}
@@ -350,14 +400,16 @@ func (p *OpenRouterMediaProvider) GenerateAudio(ctx context.Context, req AudioRe
 		"stream":     true,
 	}
 
-	audioConfig := map[string]string{"format": "wav"}
+	// When streaming, OpenAI only supports pcm16 format; use pcm16 as default.
+	audioFormat := "pcm16"
+	if req.Format != "" {
+		audioFormat = req.Format
+	}
+	audioConfig := map[string]string{"format": audioFormat}
 	if req.Voice != "" {
 		audioConfig["voice"] = req.Voice
 	} else {
 		audioConfig["voice"] = "alloy"
-	}
-	if req.Format != "" {
-		audioConfig["format"] = req.Format
 	}
 	payload["audio"] = audioConfig
 
@@ -431,9 +483,9 @@ func (p *OpenRouterMediaProvider) GenerateAudio(ctx context.Context, req AudioRe
 	}
 
 	// Concatenate base64 audio chunks
-	audioFormat := "wav"
+	outputFormat := "pcm16"
 	if req.Format != "" {
-		audioFormat = req.Format
+		outputFormat = req.Format
 	}
 
 	var audioData string
@@ -458,7 +510,7 @@ func (p *OpenRouterMediaProvider) GenerateAudio(ctx context.Context, req AudioRe
 		Text: strings.Join(textParts, ""),
 		Audio: &AudioData{
 			Data:   audioData,
-			Format: audioFormat,
+			Format: outputFormat,
 		},
 	}, nil
 }
