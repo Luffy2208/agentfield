@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { MediaRouter } from '../src/ai/MediaProvider.js';
+import { MediaRouter, MediaProviderError } from '../src/ai/MediaProvider.js';
 import type { MediaProvider, MediaResponse } from '../src/ai/MediaProvider.js';
 import { OpenRouterMediaProvider } from '../src/ai/OpenRouterMediaProvider.js';
 
@@ -45,8 +45,9 @@ describe('MediaRouter', () => {
     expect(router.resolve('openrouter/openai/dall-e', 'image')).toBe(generic);
   });
 
-  it('throws when no provider matches', () => {
+  it('throws MediaProviderError when no provider matches', () => {
     const router = new MediaRouter();
+    expect(() => router.resolve('unknown/model', 'video')).toThrow(MediaProviderError);
     expect(() => router.resolve('unknown/model', 'video')).toThrow(
       "No provider for model 'unknown/model' with 'video' capability"
     );
@@ -58,7 +59,29 @@ describe('MediaRouter', () => {
     router.register('img/', imageOnly);
 
     expect(router.resolve('img/model', 'image')).toBe(imageOnly);
-    expect(() => router.resolve('img/model', 'video')).toThrow();
+    expect(() => router.resolve('img/model', 'video')).toThrow(MediaProviderError);
+  });
+});
+
+// ── MediaProviderError tests ────────────────────────────────────────
+
+describe('MediaProviderError', () => {
+  it('is an instance of Error', () => {
+    const err = new MediaProviderError('test');
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(MediaProviderError);
+    expect(err.name).toBe('MediaProviderError');
+  });
+
+  it('carries structured context', () => {
+    const err = new MediaProviderError('fail', {
+      provider: 'openrouter',
+      model: 'google/veo-3',
+      endpoint: '/api/v1/videos',
+    });
+    expect(err.provider).toBe('openrouter');
+    expect(err.model).toBe('google/veo-3');
+    expect(err.endpoint).toBe('/api/v1/videos');
   });
 });
 
@@ -77,9 +100,10 @@ describe('OpenRouterMediaProvider', () => {
     globalThis.fetch = originalFetch;
   });
 
-  it('throws without API key', () => {
+  it('throws MediaProviderError without API key', () => {
     const orig = process.env.OPENROUTER_API_KEY;
     delete process.env.OPENROUTER_API_KEY;
+    expect(() => new OpenRouterMediaProvider()).toThrow(MediaProviderError);
     expect(() => new OpenRouterMediaProvider()).toThrow('API key required');
     if (orig) process.env.OPENROUTER_API_KEY = orig;
   });
@@ -88,6 +112,25 @@ describe('OpenRouterMediaProvider', () => {
     const p = new OpenRouterMediaProvider({ apiKey: 'test-key' });
     expect(p.name).toBe('openrouter');
     expect(p.supportedModalities).toContain('video');
+  });
+
+  it('toJSON excludes API key (CR-03)', () => {
+    const p = new OpenRouterMediaProvider({ apiKey: 'secret-key-123' });
+    const json = JSON.parse(JSON.stringify(p));
+    expect(json).not.toHaveProperty('apiKey');
+    expect(Object.values(json).join(' ')).not.toContain('secret-key-123');
+    expect(json.name).toBe('openrouter');
+    expect(json.baseUrl).toBeDefined();
+  });
+
+  it('API key not on instance properties (CR-03)', () => {
+    const p = new OpenRouterMediaProvider({ apiKey: 'secret-key-123' });
+    const keys = Object.keys(p);
+    expect(keys).not.toContain('apiKey');
+    // Ensure key isn't accessible via any enumerable property
+    for (const k of keys) {
+      expect((p as any)[k]).not.toBe('secret-key-123');
+    }
   });
 
   it('strips openrouter/ prefix from model', async () => {
@@ -115,6 +158,23 @@ describe('OpenRouterMediaProvider', () => {
     // Verify the model sent in the body has prefix stripped
     const callBody = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(callBody.model).toBe('openai/gpt-image-1');
+  });
+
+  it('passes AbortSignal.timeout to fetch calls (CR-01)', async () => {
+    const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: 'test' } }],
+      }),
+    });
+
+    await provider.generateImage({ prompt: 'test' });
+
+    // Verify signal is present on the fetch call
+    const fetchOptions = mockFetch.mock.calls[0][1];
+    expect(fetchOptions.signal).toBeDefined();
   });
 
   describe('generateVideo', () => {
@@ -159,9 +219,13 @@ describe('OpenRouterMediaProvider', () => {
 
       // Verify calls: submit, poll, download
       expect(mockFetch).toHaveBeenCalledTimes(3);
+
+      // Verify download fetch has redirect: 'error' (CR-02)
+      const downloadOptions = mockFetch.mock.calls[2][1];
+      expect(downloadOptions.redirect).toBe('error');
     });
 
-    it('throws on submit failure', async () => {
+    it('throws on submit failure with context (WR-05)', async () => {
       const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
 
       mockFetch.mockResolvedValueOnce({
@@ -172,7 +236,21 @@ describe('OpenRouterMediaProvider', () => {
 
       await expect(
         provider.generateVideo({ prompt: 'test', pollInterval: 1 })
-      ).rejects.toThrow('Video submit failed: 402');
+      ).rejects.toThrow('Video submit failed');
+    });
+
+    it('submit failure is MediaProviderError', async () => {
+      const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 402,
+        text: async () => 'Insufficient credits',
+      });
+
+      await expect(
+        provider.generateVideo({ prompt: 'test', pollInterval: 1 })
+      ).rejects.toThrow(MediaProviderError);
     });
 
     it('throws on generation failure status', async () => {
@@ -208,6 +286,71 @@ describe('OpenRouterMediaProvider', () => {
       await expect(
         provider.generateVideo({ prompt: 'test', pollInterval: 1, timeout: 10 })
       ).rejects.toThrow('timed out');
+    });
+
+    it('rejects non-https video download URL (CR-02)', async () => {
+      const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+      // Submit
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'job-http' }),
+      });
+      // Poll -> completed with http URL
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'job-http',
+          status: 'completed',
+          unsigned_url: 'http://example.com/video.mp4',
+        }),
+      });
+
+      await expect(
+        provider.generateVideo({ prompt: 'test', pollInterval: 1 })
+      ).rejects.toThrow('non-HTTPS');
+    });
+
+    it('rejects localhost video download URL (CR-02)', async () => {
+      const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'job-local' }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'job-local',
+          status: 'completed',
+          unsigned_url: 'https://localhost/video.mp4',
+        }),
+      });
+
+      await expect(
+        provider.generateVideo({ prompt: 'test', pollInterval: 1 })
+      ).rejects.toThrow('localhost');
+    });
+
+    it('rejects private IP video download URL (CR-02)', async () => {
+      const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'job-priv' }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          id: 'job-priv',
+          status: 'completed',
+          unsigned_url: 'https://10.0.0.1/video.mp4',
+        }),
+      });
+
+      await expect(
+        provider.generateVideo({ prompt: 'test', pollInterval: 1 })
+      ).rejects.toThrow('private IP');
     });
   });
 
@@ -299,7 +442,38 @@ describe('OpenRouterMediaProvider', () => {
       expect(resp.audio!.format).toBe('wav');
     });
 
-    it('throws on failure', async () => {
+    it('processes remaining buffer after stream ends (WR-02)', async () => {
+      const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+      // Send data without trailing newline so it stays in buffer
+      const encoder = new TextEncoder();
+      let callIndex = 0;
+      const chunks = [
+        'data: {"choices":[{"delta":{"content":"A"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"B"}}]}', // no trailing newline
+      ];
+
+      const mockReader = {
+        read: vi.fn().mockImplementation(async () => {
+          if (callIndex < chunks.length) {
+            const chunk = encoder.encode(chunks[callIndex]);
+            callIndex++;
+            return { done: false, value: chunk };
+          }
+          return { done: true, value: undefined };
+        }),
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: { getReader: () => mockReader },
+      });
+
+      const resp = await provider.generateAudio({ text: 'test' });
+      expect(resp.text).toBe('AB');
+    });
+
+    it('throws on failure with context (WR-05)', async () => {
       const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
 
       mockFetch.mockResolvedValueOnce({
@@ -310,7 +484,48 @@ describe('OpenRouterMediaProvider', () => {
 
       await expect(
         provider.generateAudio({ text: 'test' })
-      ).rejects.toThrow('Audio generation failed: 500');
+      ).rejects.toThrow(MediaProviderError);
+      // Reset mock for second assertion
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: async () => 'Internal error',
+      });
+      await expect(
+        provider.generateAudio({ text: 'test' })
+      ).rejects.toThrow('Audio generation failed');
+    });
+
+    it('throws after too many consecutive parse errors (WR-04)', async () => {
+      const provider = new OpenRouterMediaProvider({ apiKey: 'test-key' });
+
+      // Create 51+ malformed SSE lines in a single chunk
+      const malformedLines = Array.from(
+        { length: 55 },
+        (_, i) => `data: NOT-VALID-JSON-${i}`
+      ).join('\n') + '\n';
+
+      const encoder = new TextEncoder();
+      let sent = false;
+
+      const mockReader = {
+        read: vi.fn().mockImplementation(async () => {
+          if (!sent) {
+            sent = true;
+            return { done: false, value: encoder.encode(malformedLines) };
+          }
+          return { done: true, value: undefined };
+        }),
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        body: { getReader: () => mockReader },
+      });
+
+      await expect(
+        provider.generateAudio({ text: 'test' })
+      ).rejects.toThrow('consecutive SSE parse errors');
     });
   });
 });

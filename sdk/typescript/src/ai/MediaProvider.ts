@@ -3,6 +3,24 @@
  * Mirrors the Python SDK's MediaProvider abstraction.
  */
 
+/** Custom error class for media provider failures with structured context. */
+export class MediaProviderError extends Error {
+  readonly provider?: string;
+  readonly model?: string;
+  readonly endpoint?: string;
+
+  constructor(
+    message: string,
+    options?: { provider?: string; model?: string; endpoint?: string; cause?: unknown }
+  ) {
+    super(message, options?.cause ? { cause: options.cause } : undefined);
+    this.name = 'MediaProviderError';
+    this.provider = options?.provider;
+    this.model = options?.model;
+    this.endpoint = options?.endpoint;
+  }
+}
+
 export interface VideoRequest {
   prompt: string;
   model?: string;
@@ -83,6 +101,9 @@ export class MediaRouter {
         return provider;
       }
     }
-    throw new Error(`No provider for model '${model}' with '${capability}' capability`);
+    throw new MediaProviderError(
+      `No provider for model '${model}' with '${capability}' capability`,
+      { model }
+    );
   }
 }

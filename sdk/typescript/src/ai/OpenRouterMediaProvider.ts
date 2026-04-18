@@ -10,11 +10,20 @@ import type {
   ImageRequest,
   AudioRequest,
 } from './MediaProvider.js';
+import { MediaProviderError } from './MediaProvider.js';
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 
 const DEFAULT_POLL_INTERVAL = 30_000; // 30s
 const DEFAULT_TIMEOUT = 600_000; // 10min
+
+const API_TIMEOUT = 30_000; // 30s for API calls
+const DOWNLOAD_TIMEOUT = 120_000; // 120s for video download
+
+const MAX_CONSECUTIVE_PARSE_ERRORS = 50;
+
+/** Module-level WeakMap to keep API key off the instance (CR-03). */
+const apiKeyStore = new WeakMap<OpenRouterMediaProvider, string>();
 
 function emptyMediaResponse(raw: unknown): MediaResponse {
   return { text: '', images: [], audio: null, files: [], videos: [], rawResponse: raw };
@@ -22,6 +31,55 @@ function emptyMediaResponse(raw: unknown): MediaResponse {
 
 function stripPrefix(model: string): string {
   return model.startsWith('openrouter/') ? model.slice('openrouter/'.length) : model;
+}
+
+/**
+ * Validate a URL is safe to download from (CR-02 — SSRF protection).
+ * Rejects non-https, localhost, and private/reserved IP ranges.
+ */
+function assertSafeUrl(urlStr: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(urlStr);
+  } catch {
+    throw new MediaProviderError(`Invalid download URL: ${urlStr}`);
+  }
+
+  if (parsed.protocol !== 'https:') {
+    throw new MediaProviderError(
+      `Refusing to download from non-HTTPS URL: ${urlStr}`
+    );
+  }
+
+  const host = parsed.hostname.toLowerCase();
+
+  // Block localhost variants
+  if (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '[::1]' ||
+    host === '::1' ||
+    host === '0.0.0.0'
+  ) {
+    throw new MediaProviderError(`Refusing to download from localhost: ${urlStr}`);
+  }
+
+  // Block private IP ranges (10.x, 172.16-31.x, 192.168.x, 169.254.x)
+  const ipv4Match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const [, a, b] = ipv4Match.map(Number);
+    if (
+      a === 10 ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 192 && b === 168) ||
+      (a === 169 && b === 254) ||
+      a === 0
+    ) {
+      throw new MediaProviderError(
+        `Refusing to download from private IP: ${urlStr}`
+      );
+    }
+  }
 }
 
 export interface OpenRouterMediaProviderOptions {
@@ -33,15 +91,26 @@ export class OpenRouterMediaProvider implements MediaProvider {
   readonly name = 'openrouter';
   readonly supportedModalities = ['image', 'audio', 'video'];
 
-  private readonly apiKey: string;
   private readonly baseUrl: string;
 
   constructor(options: OpenRouterMediaProviderOptions = {}) {
-    this.apiKey = options.apiKey ?? process.env.OPENROUTER_API_KEY ?? '';
+    const key = options.apiKey ?? process.env.OPENROUTER_API_KEY ?? '';
     this.baseUrl = options.baseUrl ?? OPENROUTER_BASE;
-    if (!this.apiKey) {
-      throw new Error('OpenRouter API key required: pass apiKey or set OPENROUTER_API_KEY');
+    if (!key) {
+      throw new MediaProviderError('OpenRouter API key required: pass apiKey or set OPENROUTER_API_KEY', {
+        provider: 'openrouter',
+      });
     }
+    apiKeyStore.set(this, key);
+  }
+
+  /** Prevent API key from leaking via JSON.stringify (CR-03). */
+  toJSON(): Record<string, unknown> {
+    return {
+      name: this.name,
+      supportedModalities: this.supportedModalities,
+      baseUrl: this.baseUrl,
+    };
   }
 
   // ── Video ──────────────────────────────────────────────────────────
@@ -64,36 +133,60 @@ export class OpenRouterMediaProvider implements MediaProvider {
     if (request.frameImages) body.frame_images = request.frameImages;
     if (request.inputReferences) body.input_references = request.inputReferences;
 
+    const submitEndpoint = `${this.baseUrl}/videos`;
+
     // Submit job
-    const submitRes = await this.post(`${this.baseUrl}/videos`, body);
+    const submitRes = await this.post(submitEndpoint, body);
     if (!submitRes.ok) {
-      throw new Error(`Video submit failed: ${submitRes.status} ${await submitRes.text()}`);
+      throw new MediaProviderError(
+        `Video submit failed [model=${model}] [endpoint=${submitEndpoint}]: ${submitRes.status} ${await submitRes.text()}`,
+        { provider: 'openrouter', model, endpoint: submitEndpoint }
+      );
     }
     const submitData = (await submitRes.json()) as Record<string, unknown>;
     const jobId = submitData.id as string;
     if (!jobId) {
-      throw new Error('No job id returned from video submit');
+      throw new MediaProviderError('No job id returned from video submit', {
+        provider: 'openrouter',
+        model,
+        endpoint: submitEndpoint,
+      });
     }
 
-    // Poll until done
+    // Poll until done (WR-01: check deadline AFTER sleep, use Math.min for sleep)
     const deadline = Date.now() + timeout;
     let jobData: Record<string, unknown> = {};
-    while (Date.now() < deadline) {
-      await sleep(pollInterval);
-      const pollRes = await this.get(`${this.baseUrl}/videos/${jobId}`);
+    const pollEndpoint = `${this.baseUrl}/videos/${jobId}`;
+
+    while (true) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await sleep(Math.min(pollInterval, remaining));
+      if (Date.now() >= deadline) break;
+
+      const pollRes = await this.get(pollEndpoint);
       if (!pollRes.ok) {
-        throw new Error(`Video poll failed: ${pollRes.status} ${await pollRes.text()}`);
+        throw new MediaProviderError(
+          `Video poll failed [model=${model}] [endpoint=${pollEndpoint}]: ${pollRes.status} ${await pollRes.text()}`,
+          { provider: 'openrouter', model, endpoint: pollEndpoint }
+        );
       }
       jobData = (await pollRes.json()) as Record<string, unknown>;
       const status = jobData.status as string | undefined;
       if (status === 'completed') break;
       if (status === 'failed' || status === 'error') {
-        throw new Error(`Video generation failed: ${JSON.stringify(jobData)}`);
+        throw new MediaProviderError(
+          `Video generation failed [model=${model}]: ${JSON.stringify(jobData)}`,
+          { provider: 'openrouter', model }
+        );
       }
     }
 
     if ((jobData.status as string) !== 'completed') {
-      throw new Error('Video generation timed out');
+      throw new MediaProviderError(
+        `Video generation timed out [model=${model}] after ${timeout}ms`,
+        { provider: 'openrouter', model }
+      );
     }
 
     // Extract video URL
@@ -101,10 +194,14 @@ export class OpenRouterMediaProvider implements MediaProvider {
     const signedUrl = jobData.url as string | undefined;
     const videoUrl = unsignedUrl ?? signedUrl;
 
-    // Download video bytes if URL available
+    // Download video bytes if URL available (CR-02: validate URL, redirect: 'error')
     let videoData: string | undefined;
     if (videoUrl) {
-      const dlRes = await fetch(videoUrl);
+      assertSafeUrl(videoUrl);
+      const dlRes = await fetch(videoUrl, {
+        signal: AbortSignal.timeout(DOWNLOAD_TIMEOUT),
+        redirect: 'error',
+      });
       if (dlRes.ok) {
         const buf = Buffer.from(await dlRes.arrayBuffer());
         videoData = buf.toString('base64');
@@ -140,9 +237,13 @@ export class OpenRouterMediaProvider implements MediaProvider {
     if (request.quality) body.quality = request.quality;
     if (request.imageConfig) body.image_config = request.imageConfig;
 
-    const res = await this.post(`${this.baseUrl}/chat/completions`, body);
+    const endpoint = `${this.baseUrl}/chat/completions`;
+    const res = await this.post(endpoint, body);
     if (!res.ok) {
-      throw new Error(`Image generation failed: ${res.status} ${await res.text()}`);
+      throw new MediaProviderError(
+        `Image generation failed [model=${model}] [endpoint=${endpoint}]: ${res.status} ${await res.text()}`,
+        { provider: 'openrouter', model, endpoint }
+      );
     }
     const data = (await res.json()) as Record<string, unknown>;
     const resp = emptyMediaResponse(data);
@@ -198,9 +299,13 @@ export class OpenRouterMediaProvider implements MediaProvider {
       },
     };
 
-    const res = await this.post(`${this.baseUrl}/chat/completions`, body);
+    const endpoint = `${this.baseUrl}/chat/completions`;
+    const res = await this.post(endpoint, body);
     if (!res.ok) {
-      throw new Error(`Audio generation failed: ${res.status} ${await res.text()}`);
+      throw new MediaProviderError(
+        `Audio generation failed [model=${model}] [endpoint=${endpoint}]: ${res.status} ${await res.text()}`,
+        { provider: 'openrouter', model, endpoint }
+      );
     }
 
     // Parse SSE stream and collect audio chunks
@@ -208,11 +313,16 @@ export class OpenRouterMediaProvider implements MediaProvider {
     let textContent = '';
     const reader = res.body?.getReader();
     if (!reader) {
-      throw new Error('No response body stream available');
+      throw new MediaProviderError('No response body stream available', {
+        provider: 'openrouter',
+        model,
+        endpoint,
+      });
     }
 
     const decoder = new TextDecoder();
     let buffer = '';
+    let consecutiveParseErrors = 0;
 
     while (true) {
       const { done, value } = await reader.read();
@@ -231,6 +341,7 @@ export class OpenRouterMediaProvider implements MediaProvider {
 
         try {
           const chunk = JSON.parse(payload) as Record<string, unknown>;
+          consecutiveParseErrors = 0; // reset on success
           const choices = chunk.choices as Array<Record<string, unknown>> | undefined;
           if (!choices) continue;
           for (const choice of choices) {
@@ -245,7 +356,42 @@ export class OpenRouterMediaProvider implements MediaProvider {
             }
           }
         } catch {
-          // skip malformed chunks
+          consecutiveParseErrors++;
+          if (consecutiveParseErrors > MAX_CONSECUTIVE_PARSE_ERRORS) {
+            throw new MediaProviderError(
+              `Too many consecutive SSE parse errors (>${MAX_CONSECUTIVE_PARSE_ERRORS}) [model=${model}]`,
+              { provider: 'openrouter', model, endpoint }
+            );
+          }
+        }
+      }
+    }
+
+    // WR-02: Process remaining buffer after reader loop ends
+    if (buffer.trim()) {
+      const remaining = buffer.trim();
+      if (remaining.startsWith('data:')) {
+        const payload = remaining.slice(5).trim();
+        if (payload && payload !== '[DONE]') {
+          try {
+            const chunk = JSON.parse(payload) as Record<string, unknown>;
+            const choices = chunk.choices as Array<Record<string, unknown>> | undefined;
+            if (choices) {
+              for (const choice of choices) {
+                const delta = choice.delta as Record<string, unknown> | undefined;
+                if (!delta) continue;
+                if (typeof delta.content === 'string') {
+                  textContent += delta.content;
+                }
+                const audioDelta = delta.audio as Record<string, unknown> | undefined;
+                if (audioDelta?.data) {
+                  audioChunks.push(audioDelta.data as string);
+                }
+              }
+            }
+          } catch {
+            // final chunk malformed — ignore
+          }
         }
       }
     }
@@ -264,22 +410,26 @@ export class OpenRouterMediaProvider implements MediaProvider {
   // ── Helpers ────────────────────────────────────────────────────────
 
   private post(url: string, body: unknown): Promise<Response> {
+    const key = apiKeyStore.get(this);
     return fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(API_TIMEOUT),
     });
   }
 
   private get(url: string): Promise<Response> {
+    const key = apiKeyStore.get(this);
     return fetch(url, {
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${key}`,
       },
+      signal: AbortSignal.timeout(API_TIMEOUT),
     });
   }
 }
