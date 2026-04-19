@@ -399,3 +399,153 @@ func TestExecuteToolCallLoopResult_AppliesPromptConfig(t *testing.T) {
 		assert.Equal(t, "done", result.Text())
 	})
 }
+
+func TestEncodeToolContent_AllCases(t *testing.T) {
+    // string
+    assert.Equal(t, "hello", encodeToolContent("hello"))
+
+    // []byte
+    assert.Equal(t, "hi", encodeToolContent([]byte("hi")))
+
+    // JSON
+    out := encodeToolContent(map[string]string{"a": "b"})
+    assert.Contains(t, out, `"a":"b"`)
+
+    // invalid (marshal error)
+    ch := make(chan int)
+    assert.Equal(t, "{}", encodeToolContent(ch))
+}
+
+func TestNormalizeToolParameters_AllCases(t *testing.T) {
+    // nil
+    out := normalizeToolParameters(nil)
+    assert.Equal(t, "object", out["type"])
+
+    // already valid
+    in := map[string]interface{}{"type": "object"}
+    out = normalizeToolParameters(in)
+    assert.Equal(t, in, out)
+
+    // missing type
+    in = map[string]interface{}{"field": "value"}
+    out = normalizeToolParameters(in)
+    assert.Equal(t, "object", out["type"])
+}
+
+func TestExecuteToolCallLoopResult_ErrorFormatter(t *testing.T) {
+    var requestCount atomic.Int32
+
+    client := newToolLoopClient(t, func(w http.ResponseWriter, r *http.Request) {
+        count := requestCount.Add(1)
+
+        if count == 1 {
+            require.NoError(t, json.NewEncoder(w).Encode(Response{
+                Choices: []Choice{{
+                    Message: Message{
+                        Role: "assistant",
+                        ToolCalls: []ToolCall{{
+                            ID:   "call-1",
+                            Type: "function",
+                            Function: ToolCallFunction{
+                                Name:      "lookup",
+                                Arguments: `{"id":"1"}`,
+                            },
+                        }},
+                    },
+                }},
+            }))
+            return
+        }
+
+        var req Request
+        require.NoError(t, json.NewDecoder(r.Body).Decode(&req))
+
+        assert.Contains(t, req.Messages[2].Content[0].Text, "custom-error")
+
+        require.NoError(t, json.NewEncoder(w).Encode(Response{
+            Choices: []Choice{{Message: Message{
+                Role:    "assistant",
+                Content: []ContentPart{{Type: "text", Text: "done"}},
+            }}},
+        }))
+    })
+
+    _, err := client.ExecuteToolCallLoopResult(
+        context.Background(),
+        []Message{{Role: "user", Content: []ContentPart{{Type: "text", Text: "lookup"}}}},
+        []ToolDefinition{{Type: "function", Function: ToolFunction{Name: "lookup"}}},
+        ToolCallConfig{
+            MaxTurns:     2,
+            MaxToolCalls: 2,
+            PromptConfig: &PromptConfig{
+                ToolErrorFormatter: func(tool string, err error) interface{} {
+                    return map[string]string{"error": "custom-error"}
+                },
+            },
+        },
+        func(context.Context, string, map[string]interface{}) (map[string]interface{}, error) {
+            return nil, assert.AnError
+        },
+    )
+
+    require.NoError(t, err)
+}
+
+func TestExecuteToolCallLoopResult_NoToolCalls(t *testing.T) {
+    client := newToolLoopClient(t, func(w http.ResponseWriter, r *http.Request) {
+        require.NoError(t, json.NewEncoder(w).Encode(Response{
+            Choices: []Choice{{
+                Message: Message{
+                    Role:    "assistant",
+                    Content: []ContentPart{{Type: "text", Text: "direct"}},
+                },
+                FinishReason: "stop",
+            }},
+        }))
+    })
+
+    result, err := client.ExecuteToolCallLoopResult(
+        context.Background(),
+        []Message{{Role: "user", Content: []ContentPart{{Type: "text", Text: "hi"}}}},
+        nil,
+        DefaultToolCallConfig(),
+        nil,
+    )
+
+    require.NoError(t, err)
+    assert.Equal(t, "direct", result.Text())
+}
+
+func TestSanitizeToolName_NoChange(t *testing.T) {
+    name := "simpletool"
+    assert.Equal(t, name, sanitizeToolName(name))
+}
+
+func TestUnsanitizeToolName_Standalone(t *testing.T) {
+    assert.Equal(t, "worker:skill:lookup", unsanitizeToolName("worker__skill__lookup"))
+}
+func TestSanitizeToolName_MultipleColons(t *testing.T) {
+    name := "a:b:c:d"
+    sanitized := sanitizeToolName(name)
+    assert.Equal(t, "a__b__c__d", sanitized)
+    assert.Equal(t, name, unsanitizeToolName(sanitized))
+}
+
+func TestResolvePromptConfig_Nil(t *testing.T) {
+    cfg := resolvePromptConfig(nil)
+    assert.NotNil(t, cfg)
+    assert.NotEmpty(t, cfg.ToolCallLimitReached)
+}
+
+func TestToolCallResult_FallbackToResponse(t *testing.T) {
+    resp := &Response{
+        Choices: []Choice{{
+            Message: Message{
+                Content: []ContentPart{{Type: "text", Text: "from response"}},
+            },
+        }},
+    }
+
+    result := &ToolCallResult{Response: resp, Trace: nil}
+    assert.Equal(t, "from response", result.Text())
+}
