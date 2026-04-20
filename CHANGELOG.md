@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.70-rc.3] - 2026-04-20
+
+
+### Other
+
+- Security(control-plane): rebuild serverless discovery URL from validated parts
+
+Fixes CodeQL go/request-forgery (CWE-918) alert #32 on
+RegisterServerlessAgentHandler by splitting normalizeServerlessDiscoveryURL
+into a parse helper that returns a freshly constructed *url.URL (validated
+scheme literal, allowlisted host, path.Clean-ed path, no user/query/fragment
+propagated) and having the handler build the /discover URL from those
+sanitized components rather than string-concatenating the caller-supplied
+value. Also rejects opaque URLs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (2d917b4)
+
 ## [0.1.70-rc.2] - 2026-04-20
 
 
