@@ -6,6 +6,190 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.70-rc.2] - 2026-04-20
+
+
+### Added
+
+- Feat(python-sdk): add OpenRouter video generation via async polling (#464)
+
+* feat(python-sdk): add OpenRouter video generation via async polling (#464)
+
+* fix(python-sdk): address code review findings for OpenRouter video (#464)
+
+CR-01: Add image_url to request body (was silently dropped)
+CR-02: Validate job_id format + enforce HTTPS-only video download URL
+HI-01: Add MAX_VIDEO_BYTES (500MB) size limit on video downloads
+HI-02: Add comment clarifying download uses no auth headers
+HI-03: Add transient poll error retry (max 3 consecutive 502/503/504)
+MD-01: Fix duration type to Optional[float], remove int() cast in agent_ai
+MD-03: Move poll sleep to end of loop (poll immediately on first iteration)
+LO-01: Truncate error response bodies to 500 chars
+LO-02: Move _error_messages to class constant _VIDEO_ERROR_MESSAGES
+IN-02: Add test for image_url passthrough in request body (be83fb9)
+
+- Feat(typescript-sdk): add MediaProvider interface and OpenRouter media generation (#467)
+
+Ports MediaProvider abstraction to TS SDK with VideoRequest/ImageRequest/AudioRequest
+types, MediaRouter prefix-based dispatch, and OpenRouterMediaProvider supporting
+video (async job polling), image, and audio (SSE stream) generation. (4426efd)
+
+- Feat(python-sdk): add OpenRouter audio output and music generation (#465)
+
+Implement SSE streaming audio via OpenRouter chat completions API and
+add music generation capability to the MediaProvider ABC and
+OpenRouterProvider. (4e208c7)
+
+- Feat(go-sdk): add MediaProvider interface and OpenRouter media generation (#468)
+
+* feat(go-sdk): add MediaProvider interface and OpenRouter media generation (#468)
+
+Adds MediaProvider interface, MediaRouter for model-prefix-based dispatch,
+and OpenRouterMediaProvider supporting image, audio, and video generation.
+
+* fix(02): CR-01 validate job ID to prevent SSRF via path traversal
+
+* fix(02): CR-02+WR-02 use context.WithTimeout for poll loop, add transient error retry
+
+* fix(02): CR-03 increase SSE scanner buffer to 1MB for large audio chunks
+
+* fix(02): WR-01 cap io.ReadAll with 10MB LimitReader on all HTTP responses
+
+* fix(02): WR-03 validate API key non-empty, return error from constructor
+
+* fix(02): WR-05+WR-06 validate non-empty prompt/text before API calls
+
+* fix(02): WR-07 return error on base64 decode failure instead of silent skip
+
+* fix(02): IN-05 set VideoData.Filename to generated_video.mp4
+
+* fix(02): WR-08 add full video poll lifecycle test and input validation tests (97dcf74)
+
+- Feat(python-sdk): add MediaRouter for prefix-based provider dispatch (#463) (#474)
+
+- New MediaRouter class in media_router.py with longest-prefix-first matching
+- Lazy _media_router property in AgentAI with fal/openrouter/litellm providers
+- Refactored ai_with_vision(), ai_with_audio(), ai_generate_video() to use router
+- Updated tests for new routing pattern (6060c5d)
+
+- Feat(python-sdk): add VideoOutput type and video support to MultimodalResponse (#469) (#473)
+
+Squash merge: VideoOutput type and video support (#469) (8ade081)
+
+- Feat(python-sdk): add image_config support for OpenRouter image generation (#466) (#472)
+
+Squash merge: image_config support for OpenRouter (#466) (a7fa506)
+
+
+
+### CI
+
+- Ci(coverage): stop rerunning full coverage pipeline on push to main
+
+Coverage Summary was triggering on every push to main after a PR merge,
+duplicating the 5-surface matrix + aggregation that already ran on the
+PR. The only thing that actually needed push-to-main was the coverage
+badge gist update.
+
+Split the badge update into a new lightweight workflow (coverage-badge.yml)
+that locates the merged PR's coverage-summary artifact and pushes it to
+the gist. No tests or aggregation re-run on main.
+
+- Drop push: branches:[main] from coverage.yml triggers.
+- Remove the badge update step from coverage.yml.
+- Add coverage-badge.yml: resolves the PR associated with the merge
+  commit, finds its successful Coverage Summary run, downloads the
+  coverage-summary artifact, and updates the gist. Skips cleanly on
+  docs-only PRs (no artifact) or expired artifacts.
+- Bump coverage-summary artifact retention 7d -> 30d to cover the gap
+  between PR CI and eventual merge.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (212f920)
+
+
+
+### Fixed
+
+- Fix(python-sdk): address media review comments (1cb38e2)
+
+- Fix(python-sdk): update test fakes for iter_any SSE parsing
+
+The live verification agent changed _stream_openrouter_audio() from
+readline() to iter_any() for handling large SSE lines. Update test
+fakes (_FakeContent and integration test mocks) to implement iter_any()
+as async generators instead of readline().
+
+Fixes 12 test failures in CI: test_openrouter_audio.py and
+test_media_integration.py. (e829f64)
+
+- Fix(sdk): resolve CI coverage failures and harden media generation
+
+- Fix flaky harness test: DurationMS can be 0ms for near-instant stubs
+  in CI; use GreaterOrEqual(0) instead of Positive assertion
+- Go SDK: fix image response parsing for models returning content as
+  string or null, handle Gemini-style message.images[], default audio
+  format to pcm16
+- Python SDK: replace readline-based SSE parsing with manual chunked
+  parsing to handle >64KB base64 audio lines from music models (420a656)
+
+- Fix(typescript-sdk): address MediaProvider code review findings
+
+Apply fixes from REVIEW-ts-sdk-media.md:
+- CR-01: Add AbortSignal.timeout() to all fetch calls (30s API, 120s download)
+- CR-02: SSRF validation — assertSafeUrl() blocks non-HTTPS, localhost, private IPs
+- CR-03: API key stored in WeakMap, toJSON() excludes key
+- WR-01: Poll loop checks deadline after sleep, uses Math.min for sleep duration
+- WR-02: Process remaining SSE buffer after stream ends
+- WR-04: Track parse errors, throw MediaProviderError after 50 consecutive
+- WR-05: Include model + endpoint in all error messages
+- WR-06: MediaProviderError typed error class for programmatic handling (2778d35)
+
+- Fix(python-sdk): address audio/music code review findings
+
+Apply fixes from REVIEW-465.md:
+- CR-01: Add aiohttp.ClientTimeout(total=300s) to SSE streaming
+- CR-02: Add MAX_AUDIO_B64_BYTES (500MB) size guard
+- HI-01: Extract _stream_openrouter_audio() shared helper (dedup ~90 lines)
+- HI-02: Cache _openrouter_provider as lazy property (like _fal_provider)
+- HI-03: Rename format -> audio_format internally to avoid builtin shadow
+- ME-02: Use resp.content.readline() for proper SSE line parsing
+- ME-03: Truncate error response body to 500 chars
+- ME-04: Validate duration > 0 and <= 600
+- LO-02: Replace deprecated get_event_loop with @pytest.mark.asyncio (00e5579)
+
+
+
+### Other
+
+- Merge: resolve conflict with main in agent.py
+
+Keep dev/add-video version which includes ai_generate_music delegate
+and all media generation methods added during the milestone. (aac2d8f)
+
+
+
+### Testing
+
+- Test(python-sdk): reduce agent registry concurrency flake (497983e)
+
+- Test(sdk-go): raise openrouter_media patch coverage above gate
+
+Add coverage tests for branches not exercised by the existing media
+integration suite: optional video payload fields, submit/poll error
+paths, image config+inline-base64 fallback, Gemini-style images[],
+audio default voice, HTTP error, invalid SSE/base64 chunks, and
+RawStdEncoding fallback. Lifts patch coverage from 69% to 89%. (9030351)
+
+- Test: add cross-SDK media generation integration tests (#470)
+
+- Python: 33 tests — MediaRouter routing, OpenRouter video/audio/music
+  lifecycle, AgentAI dispatch, MultimodalResponse consistency, error
+  propagation, provider caching
+- TypeScript: 28 tests — MediaRouter, OpenRouter video/image/audio,
+  SSRF protection (8 cases), MediaProviderError typing
+- Go: 25 tests — MediaRouter, OpenRouter video lifecycle with httptest,
+  audio SSE, input validation, context cancellation (ced7209)
+
 ## [0.1.70-rc.1] - 2026-04-20
 
 
