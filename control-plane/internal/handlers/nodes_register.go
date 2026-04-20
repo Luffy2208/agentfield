@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -211,47 +212,94 @@ func resolveCallbackCandidates(rawCandidates []string, defaultPort string) (stri
 	return normalized[0], normalized, nil
 }
 
+// normalizeServerlessDiscoveryURL validates the caller-supplied invocation URL
+// and rebuilds it from a restricted set of components. The returned URL carries
+// only literal scheme values ("http"/"https"), a host whose hostname has been
+// matched against an allowlist, an optional validated port, and a sanitized
+// path — no user-info, query, or fragment is ever propagated. This breaks the
+// request-forgery (SSRF) taint flow from user input into the outbound HTTP
+// request, and defends against path-traversal sequences in the supplied path.
 func normalizeServerlessDiscoveryURL(rawURL string, allowedHosts []string) (string, error) {
+	safeURL, err := parseServerlessDiscoveryURL(rawURL, allowedHosts)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(safeURL.String(), "/"), nil
+}
+
+// parseServerlessDiscoveryURL performs the same validation as
+// normalizeServerlessDiscoveryURL and returns a freshly constructed *url.URL
+// assembled from validated components, so callers can compose a request URL
+// (e.g. appending "/discover") without re-introducing untrusted data.
+func parseServerlessDiscoveryURL(rawURL string, allowedHosts []string) (*url.URL, error) {
 	parsedURL, err := url.Parse(strings.TrimSpace(rawURL))
 	if err != nil {
-		return "", fmt.Errorf("invalid invocation_url format: %w", err)
+		return nil, fmt.Errorf("invalid invocation_url format: %w", err)
 	}
 
-	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
-		return "", fmt.Errorf("invocation_url must use http or https")
+	// Reject opaque URLs (e.g. "mailto:..."), which have no host component.
+	if parsedURL.Opaque != "" {
+		return nil, fmt.Errorf("invocation_url must not be opaque")
+	}
+
+	// Only accept literal http/https schemes so the scheme placed on the
+	// reconstructed URL cannot be influenced by user input.
+	var scheme string
+	switch parsedURL.Scheme {
+	case "http":
+		scheme = "http"
+	case "https":
+		scheme = "https"
+	default:
+		return nil, fmt.Errorf("invocation_url must use http or https")
 	}
 
 	if parsedURL.User != nil {
-		return "", fmt.Errorf("invocation_url must not include user info")
+		return nil, fmt.Errorf("invocation_url must not include user info")
 	}
 
 	if parsedURL.Host == "" {
-		return "", fmt.Errorf("invocation_url must include a host")
+		return nil, fmt.Errorf("invocation_url must include a host")
 	}
 
 	if parsedURL.RawQuery != "" || parsedURL.Fragment != "" {
-		return "", fmt.Errorf("invocation_url must not include query parameters or fragments")
+		return nil, fmt.Errorf("invocation_url must not include query parameters or fragments")
 	}
 
 	hostname := parsedURL.Hostname()
 	if hostname == "" {
-		return "", fmt.Errorf("invocation_url must include a host")
+		return nil, fmt.Errorf("invocation_url must include a host")
 	}
 
+	// Treat wildcard bind addresses as loopback so developer workflows work.
 	if hostname == "0.0.0.0" || hostname == "::" {
 		hostname = "localhost"
-		if port := parsedURL.Port(); port != "" {
-			parsedURL.Host = net.JoinHostPort(hostname, port)
-		} else {
-			parsedURL.Host = hostname
-		}
 	}
 
 	if !isServerlessDiscoveryHostAllowed(hostname, allowedHosts) {
-		return "", fmt.Errorf("invocation_url host %q is not allowlisted for server-side discovery; configure agentfield.registration.serverless_discovery_allowed_hosts or AGENTFIELD_REGISTRATION_SERVERLESS_DISCOVERY_ALLOWED_HOSTS", hostname)
+		return nil, fmt.Errorf("invocation_url host %q is not allowlisted for server-side discovery; configure agentfield.registration.serverless_discovery_allowed_hosts or AGENTFIELD_REGISTRATION_SERVERLESS_DISCOVERY_ALLOWED_HOSTS", hostname)
 	}
 
-	return strings.TrimSuffix(parsedURL.String(), "/"), nil
+	host := hostname
+	if port := parsedURL.Port(); port != "" {
+		host = net.JoinHostPort(hostname, port)
+	}
+
+	// path.Clean collapses any "." / ".." segments so a validated host cannot
+	// be combined with a traversal path to reach unintended endpoints.
+	cleanedPath := ""
+	if parsedURL.Path != "" {
+		cleanedPath = path.Clean("/" + strings.TrimPrefix(parsedURL.Path, "/"))
+		if cleanedPath == "/" {
+			cleanedPath = ""
+		}
+	}
+
+	return &url.URL{
+		Scheme: scheme,
+		Host:   host,
+		Path:   cleanedPath,
+	}, nil
 }
 
 func isServerlessDiscoveryHostAllowed(host string, allowedHosts []string) bool {
@@ -680,7 +728,11 @@ func RegisterServerlessAgentHandler(storageProvider storage.StorageProvider, uiS
 			return
 		}
 
-		normalizedURL, err := normalizeServerlessDiscoveryURL(req.InvocationURL, allowedDiscoveryHosts)
+		// Validate the user-provided invocation URL and rebuild it (plus the
+		// discovery endpoint URL) from checked components so no tainted string
+		// flows into http.NewRequestWithContext — this is the SSRF sanitizer
+		// boundary.
+		safeInvocation, err := parseServerlessDiscoveryURL(req.InvocationURL, allowedDiscoveryHosts)
 		if err != nil {
 			logger.Logger.Warn().Err(err).Msgf("❌ Rejected serverless discovery URL: %s", req.InvocationURL)
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -690,10 +742,14 @@ func RegisterServerlessAgentHandler(storageProvider storage.StorageProvider, uiS
 			return
 		}
 
-		logger.Logger.Info().Msgf("🔍 Discovering serverless agent at: %s", normalizedURL)
+		normalizedURL := strings.TrimSuffix(safeInvocation.String(), "/")
+		discoveryURL := (&url.URL{
+			Scheme: safeInvocation.Scheme,
+			Host:   safeInvocation.Host,
+			Path:   path.Clean(safeInvocation.Path + "/discover"),
+		}).String()
 
-		// Call the discovery endpoint using normalized URL
-		discoveryURL := strings.TrimSuffix(normalizedURL, "/") + "/discover"
+		logger.Logger.Info().Msgf("🔍 Discovering serverless agent at: %s", normalizedURL)
 
 		client := &http.Client{
 			Timeout: 10 * time.Second,
