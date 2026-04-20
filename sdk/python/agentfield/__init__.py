@@ -31,6 +31,7 @@ from .multimodal_response import (
     AudioOutput,
     ImageOutput,
     FileOutput,
+    VideoOutput,
     detect_multimodal_response,
 )
 from .media_providers import (
@@ -99,6 +100,7 @@ __all__ = [
     "AudioOutput",
     "ImageOutput",
     "FileOutput",
+    "VideoOutput",
     "detect_multimodal_response",
     # Media providers
     "MediaProvider",
