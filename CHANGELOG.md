@@ -6,6 +6,382 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.70] - 2026-04-20
+
+## [0.1.70-rc.3] - 2026-04-20
+
+
+### Other
+
+- Security(control-plane): rebuild serverless discovery URL from validated parts
+
+Fixes CodeQL go/request-forgery (CWE-918) alert #32 on
+RegisterServerlessAgentHandler by splitting normalizeServerlessDiscoveryURL
+into a parse helper that returns a freshly constructed *url.URL (validated
+scheme literal, allowlisted host, path.Clean-ed path, no user/query/fragment
+propagated) and having the handler build the /discover URL from those
+sanitized components rather than string-concatenating the caller-supplied
+value. Also rejects opaque URLs.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (2d917b4)
+
+## [0.1.70-rc.2] - 2026-04-20
+
+
+### Added
+
+- Feat(python-sdk): add OpenRouter video generation via async polling (#464)
+
+* feat(python-sdk): add OpenRouter video generation via async polling (#464)
+
+* fix(python-sdk): address code review findings for OpenRouter video (#464)
+
+CR-01: Add image_url to request body (was silently dropped)
+CR-02: Validate job_id format + enforce HTTPS-only video download URL
+HI-01: Add MAX_VIDEO_BYTES (500MB) size limit on video downloads
+HI-02: Add comment clarifying download uses no auth headers
+HI-03: Add transient poll error retry (max 3 consecutive 502/503/504)
+MD-01: Fix duration type to Optional[float], remove int() cast in agent_ai
+MD-03: Move poll sleep to end of loop (poll immediately on first iteration)
+LO-01: Truncate error response bodies to 500 chars
+LO-02: Move _error_messages to class constant _VIDEO_ERROR_MESSAGES
+IN-02: Add test for image_url passthrough in request body (be83fb9)
+
+- Feat(typescript-sdk): add MediaProvider interface and OpenRouter media generation (#467)
+
+Ports MediaProvider abstraction to TS SDK with VideoRequest/ImageRequest/AudioRequest
+types, MediaRouter prefix-based dispatch, and OpenRouterMediaProvider supporting
+video (async job polling), image, and audio (SSE stream) generation. (4426efd)
+
+- Feat(python-sdk): add OpenRouter audio output and music generation (#465)
+
+Implement SSE streaming audio via OpenRouter chat completions API and
+add music generation capability to the MediaProvider ABC and
+OpenRouterProvider. (4e208c7)
+
+- Feat(go-sdk): add MediaProvider interface and OpenRouter media generation (#468)
+
+* feat(go-sdk): add MediaProvider interface and OpenRouter media generation (#468)
+
+Adds MediaProvider interface, MediaRouter for model-prefix-based dispatch,
+and OpenRouterMediaProvider supporting image, audio, and video generation.
+
+* fix(02): CR-01 validate job ID to prevent SSRF via path traversal
+
+* fix(02): CR-02+WR-02 use context.WithTimeout for poll loop, add transient error retry
+
+* fix(02): CR-03 increase SSE scanner buffer to 1MB for large audio chunks
+
+* fix(02): WR-01 cap io.ReadAll with 10MB LimitReader on all HTTP responses
+
+* fix(02): WR-03 validate API key non-empty, return error from constructor
+
+* fix(02): WR-05+WR-06 validate non-empty prompt/text before API calls
+
+* fix(02): WR-07 return error on base64 decode failure instead of silent skip
+
+* fix(02): IN-05 set VideoData.Filename to generated_video.mp4
+
+* fix(02): WR-08 add full video poll lifecycle test and input validation tests (97dcf74)
+
+- Feat(python-sdk): add MediaRouter for prefix-based provider dispatch (#463) (#474)
+
+- New MediaRouter class in media_router.py with longest-prefix-first matching
+- Lazy _media_router property in AgentAI with fal/openrouter/litellm providers
+- Refactored ai_with_vision(), ai_with_audio(), ai_generate_video() to use router
+- Updated tests for new routing pattern (6060c5d)
+
+- Feat(python-sdk): add VideoOutput type and video support to MultimodalResponse (#469) (#473)
+
+Squash merge: VideoOutput type and video support (#469) (8ade081)
+
+- Feat(python-sdk): add image_config support for OpenRouter image generation (#466) (#472)
+
+Squash merge: image_config support for OpenRouter (#466) (a7fa506)
+
+
+
+### CI
+
+- Ci(coverage): stop rerunning full coverage pipeline on push to main
+
+Coverage Summary was triggering on every push to main after a PR merge,
+duplicating the 5-surface matrix + aggregation that already ran on the
+PR. The only thing that actually needed push-to-main was the coverage
+badge gist update.
+
+Split the badge update into a new lightweight workflow (coverage-badge.yml)
+that locates the merged PR's coverage-summary artifact and pushes it to
+the gist. No tests or aggregation re-run on main.
+
+- Drop push: branches:[main] from coverage.yml triggers.
+- Remove the badge update step from coverage.yml.
+- Add coverage-badge.yml: resolves the PR associated with the merge
+  commit, finds its successful Coverage Summary run, downloads the
+  coverage-summary artifact, and updates the gist. Skips cleanly on
+  docs-only PRs (no artifact) or expired artifacts.
+- Bump coverage-summary artifact retention 7d -> 30d to cover the gap
+  between PR CI and eventual merge.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (212f920)
+
+
+
+### Fixed
+
+- Fix(python-sdk): address media review comments (1cb38e2)
+
+- Fix(python-sdk): update test fakes for iter_any SSE parsing
+
+The live verification agent changed _stream_openrouter_audio() from
+readline() to iter_any() for handling large SSE lines. Update test
+fakes (_FakeContent and integration test mocks) to implement iter_any()
+as async generators instead of readline().
+
+Fixes 12 test failures in CI: test_openrouter_audio.py and
+test_media_integration.py. (e829f64)
+
+- Fix(sdk): resolve CI coverage failures and harden media generation
+
+- Fix flaky harness test: DurationMS can be 0ms for near-instant stubs
+  in CI; use GreaterOrEqual(0) instead of Positive assertion
+- Go SDK: fix image response parsing for models returning content as
+  string or null, handle Gemini-style message.images[], default audio
+  format to pcm16
+- Python SDK: replace readline-based SSE parsing with manual chunked
+  parsing to handle >64KB base64 audio lines from music models (420a656)
+
+- Fix(typescript-sdk): address MediaProvider code review findings
+
+Apply fixes from REVIEW-ts-sdk-media.md:
+- CR-01: Add AbortSignal.timeout() to all fetch calls (30s API, 120s download)
+- CR-02: SSRF validation — assertSafeUrl() blocks non-HTTPS, localhost, private IPs
+- CR-03: API key stored in WeakMap, toJSON() excludes key
+- WR-01: Poll loop checks deadline after sleep, uses Math.min for sleep duration
+- WR-02: Process remaining SSE buffer after stream ends
+- WR-04: Track parse errors, throw MediaProviderError after 50 consecutive
+- WR-05: Include model + endpoint in all error messages
+- WR-06: MediaProviderError typed error class for programmatic handling (2778d35)
+
+- Fix(python-sdk): address audio/music code review findings
+
+Apply fixes from REVIEW-465.md:
+- CR-01: Add aiohttp.ClientTimeout(total=300s) to SSE streaming
+- CR-02: Add MAX_AUDIO_B64_BYTES (500MB) size guard
+- HI-01: Extract _stream_openrouter_audio() shared helper (dedup ~90 lines)
+- HI-02: Cache _openrouter_provider as lazy property (like _fal_provider)
+- HI-03: Rename format -> audio_format internally to avoid builtin shadow
+- ME-02: Use resp.content.readline() for proper SSE line parsing
+- ME-03: Truncate error response body to 500 chars
+- ME-04: Validate duration > 0 and <= 600
+- LO-02: Replace deprecated get_event_loop with @pytest.mark.asyncio (00e5579)
+
+
+
+### Other
+
+- Merge: resolve conflict with main in agent.py
+
+Keep dev/add-video version which includes ai_generate_music delegate
+and all media generation methods added during the milestone. (aac2d8f)
+
+
+
+### Testing
+
+- Test(python-sdk): reduce agent registry concurrency flake (497983e)
+
+- Test(sdk-go): raise openrouter_media patch coverage above gate
+
+Add coverage tests for branches not exercised by the existing media
+integration suite: optional video payload fields, submit/poll error
+paths, image config+inline-base64 fallback, Gemini-style images[],
+audio default voice, HTTP error, invalid SSE/base64 chunks, and
+RawStdEncoding fallback. Lifts patch coverage from 69% to 89%. (9030351)
+
+- Test: add cross-SDK media generation integration tests (#470)
+
+- Python: 33 tests — MediaRouter routing, OpenRouter video/audio/music
+  lifecycle, AgentAI dispatch, MultimodalResponse consistency, error
+  propagation, provider caching
+- TypeScript: 28 tests — MediaRouter, OpenRouter video/image/audio,
+  SSRF protection (8 cases), MediaProviderError typing
+- Go: 25 tests — MediaRouter, OpenRouter video lifecycle with httptest,
+  audio SSE, input validation, context cancellation (ced7209)
+
+## [0.1.70-rc.1] - 2026-04-20
+
+
+### Other
+
+- Security(deps): bump pytest to >=9.0.3 to fix CVE-2025-71176
+
+The project requires Python >=3.10 (see pyproject.toml), so the
+`python_version<'3.10'` constraints pinning pytest to 8.x were dead code
+that Dependabot still flagged as vulnerable. Drop them along with the
+other now-redundant Python <3.10 conditionals.
+
+Fixes GHSA-6w46-j5rx-g56g / CVE-2025-71176 (pytest tmpdir handling,
+vulnerable in <9.0.3).
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (fbbd02f)
+
+## [0.1.69] - 2026-04-20
+
+## [0.1.69-rc.15] - 2026-04-20
+
+## [0.1.69-rc.14] - 2026-04-20
+
+## [0.1.69-rc.13] - 2026-04-20
+
+## [0.1.69-rc.12] - 2026-04-20
+
+
+### Fixed
+
+- Fix(control-plane): rescue nodes stuck in lifecycle_status=starting
+
+Agents that register and then send heartbeats indefinitely with
+status="starting" (notably the Python SDK, whose _current_status is
+initialized to STARTING and only ever transitions to OFFLINE on shutdown)
+were left wedged in lifecycle_status="starting" forever:
+
+- needsReconciliation() only fired for stuck-starting agents when their
+  heartbeat was ALSO stale, which never happens for a healthy agent
+  heartbeating every 2s.
+- reconcileAgentStatus() only promoted empty/offline → ready; it preserved
+  "starting" even when the heartbeat was fresh.
+- The UpdateAgentStatus auto-sync also only promoted offline/empty → ready
+  when state flipped to Active, so a successful HTTP health check couldn't
+  pull an agent out of "starting" either.
+- Every "starting" heartbeat from the SDK re-asserted lifecycle_status=
+  "starting" via UpdateFromHeartbeat, clobbering any promotion.
+
+This patch:
+
+- Adds a reconciliation rule for agents stuck in "starting" past
+  MaxTransitionTime since RegisteredAt with a FRESH heartbeat — the
+  fresh heartbeat proves liveness, registration age proves startup is done.
+- Promotes "starting" → "ready" in reconcileAgentStatus when the heartbeat
+  is fresh.
+- Promotes "starting" → "ready" in the UpdateAgentStatus auto-sync when
+  state transitions to Active (e.g. successful HTTP health check).
+- Guards UpdateFromHeartbeat so "starting" heartbeats don't regress an
+  already-promoted "ready"/"degraded" agent.
+
+Adds three tests covering the full scenario end-to-end: reconciliation
+rescues the stuck node, repeated "starting" heartbeats do not regress it,
+and health-check-driven Active state also promotes "starting" → "ready".
+
+Fixes #484 (c9c2242)
+
+## [0.1.69-rc.11] - 2026-04-20
+
+
+### Testing
+
+- Tests: improve coverage for process_logs.go (ring eviction, snapshot, NDJSON) (e4e7e96)
+
+## [0.1.69-rc.10] - 2026-04-20
+
+
+### Fixed
+
+- Fix(web-ui): clear sidebar-close timeout on unmount
+
+handleCloseSidebar scheduled a 300ms setTimeout to clear the selected
+node after the close animation, but never tracked the handle. If the
+component unmounted within that window — common in tests — the timer
+still fired, called setState on an unmounted component, and React's
+internals threw "ReferenceError: window is not defined" after the test
+environment was torn down. Track the handle in a ref, clear on
+re-invocation, and clear on unmount.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (cb0d5b4)
+
+
+
+### Testing
+
+- Test(web-ui): cover sidebar-close timer cancel + deferred run
+
+Adds a test that opens, closes, reopens, and recloses the sidebar to
+exercise the clearTimeout branch on a pending handle, then waits long
+enough for the deferred setSelectedNode(null) callback to actually
+execute. Brings patch coverage on this PR's touched lines from 76% to
+100%.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (9aa1b66)
+
+## [0.1.69-rc.9] - 2026-04-20
+
+
+### Testing
+
+- Test(sdk-go): fix flaky DurationMS assertion in runner test
+
+The stub opencode provider can return in under 1ms on fast CI runners,
+making int(time.Since(start).Milliseconds()) round to 0 and failing
+assert.Positive. Switch to GreaterOrEqual(0) — a non-negative duration
+is the real invariant; sub-ms timing is not.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (98aa568)
+
+## [0.1.69-rc.8] - 2026-04-20
+
+
+### Added
+
+- Feat/refactor tool-calling, add ToolCallResult, PromptConfig, and sanitization(#234) (911009a)
+
+
+
+### Other
+
+- Added more unit tests for coverage(#234) (a88d3f4)
+
+- Added more unit tests for coverage(#234) (b597071)
+
+## [0.1.69-rc.7] - 2026-04-20
+
+
+### Added
+
+- Feat: implement Agent.stop() in python sdk (a641558)
+
+## [Unreleased]
+
+### Added
+
+- Feat: implement Agent.stop() in python sdk
+
+Implements `Agent.stop()` method that performs a clean async shutdown of an agent instance:
+- Marks agent as shutting down and transitions status to OFFLINE
+- Stops heartbeat background worker
+- Notifies AgentField control plane of graceful shutdown (best effort)
+- Cleans up async execution resources, memory event clients, and connection managers
+- Idempotent: repeated calls have no additional effect after the first
+
+Useful for applications that manage agent lifecycle programmatically (e.g.,
+context managers, signal handlers, test teardown). Uses try/except around each
+cleanup step so failures in one subsystem don't prevent cleanup of others.
+
+### Testing
+
+- Test(sdk-python): strengthen Agent.stop() idempotency and branch coverage
+
+Expanded `test_agent_stop_is_idempotent` with mock assertions verifying that all
+cleanup side effects (heartbeat stop, shutdown notification, connection manager
+stop, memory client close, async resource cleanup) are invoked exactly once across
+two consecutive stop() calls.
+
+Added `test_agent_stop_skips_shutdown_notification_when_not_connected` to verify
+graceful degradation: when `agentfield_connected=False`, the shutdown notification
+is skipped but local cleanup still runs.
+
+Removed obsolete TODO and dead implementation guard (`pytest.skip`); Agent.stop()
+is now fully implemented.
+
 ## [0.1.69-rc.6] - 2026-04-17
 
 
