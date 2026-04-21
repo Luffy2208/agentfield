@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.71-rc.4] - 2026-04-21
+
+
+### Added
+
+- Feat(skill): ship /agentfield slash command for Claude Code
+
+- Add skills/agentfield-multi-reasoner-builder/commands/agentfield.md so
+  users can trigger the skill explicitly with /agentfield in Claude Code.
+- Extend the Claude Code target installer to symlink commands/*.md from
+  the canonical current/ dir into ~/.claude/commands/, with matching
+  cleanup in Uninstall().
+- Expand the go:embed directive to include commands/*.md so a built af
+  binary ships the slash command file alongside SKILL.md and references.
+- Cover the new install/uninstall flow with a table-driven edge-case
+  test that exercises idempotent re-install, the .md filter, and cleanup.
+- README: add a /agentfield line to the "Prompt to production" section. (99ec927)
+
+
+
+### Documentation
+
+- Docs(readme): rename to 'Prompt to production', tighten to CTA essentials (27d2467)
+
+- Docs(readme): trim Build with Claude Code section (df90b7e)
+
+- Docs(readme): feature Build with Claude Code above Quick Start
+
+The agentfield-multi-reasoner-builder skill is the fastest path to a real
+multi-reasoner system on AgentField; it should be the first thing a new
+user sees, not a side effect of the install line.
+
+- rename Quick Start → 'Build with Claude Code (recommended)' featured up
+  front with a realistic skill-firing transcript and prompt gallery
+- link to new site page /docs/learn/build-with-claude-code
+- demote the manual scaffold path to 'Prefer to write it yourself?' below (d5d43e7)
+
+
+
+### Testing
+
+- Test(skillkit): cover slash-command error paths to clear patch gate
+
+Add two subtests: one where a stale regular file at the destination is
+replaced with the symlink, and one where the skill's commands path is a
+regular file rather than a directory — exercising the installCommands
+error-wrap in Install() and the non-IsNotExist ReadDir branch. (8306a3e)
+
 ## [0.1.71-rc.3] - 2026-04-21
 
 
