@@ -73,25 +73,58 @@ app.run()
 
 > **What you just saw:** `app.ai()` calls an LLM and returns structured output. `app.pause()` suspends for [human approval](https://agentfield.ai/docs/build/execution/human-in-the-loop?utm_source=github-readme&utm_campaign=github-readme&utm_id=github-readme-human-in-the-loop). `app.call()` routes to other agents through the control plane. `app.run()` auto-exposes everything as REST. [Read the full docs →](https://agentfield.ai/docs/learn?utm_source=github-readme&utm_campaign=github-readme&utm_id=github-readme-read-full-docs)
 
-## Quick Start
+## Build with Claude Code (recommended)
+
+**Describe the backend. Your coding agent ships it. AgentField runs it.**
 
 ```bash
 # Installs the af CLI AND drops the agentfield-multi-reasoner-builder skill
 # into every coding agent on your machine (Claude Code, Codex, Gemini,
 # OpenCode, Aider, Windsurf, Cursor) — no prompts, no second step.
 curl -fsSL https://agentfield.ai/install.sh | bash
-
-af init my-agent --defaults                            # Scaffold agent
-cd my-agent && pip install -r requirements.txt
 ```
 
-> **Just want the binary?** `curl -fsSL https://agentfield.ai/install.sh | bash -s -- --no-skill`
->
-> **Already have `af` installed and just want the skill?** `af skill install` (interactive picker) or `af skill install --all` (every detected agent). See [`af skill --help`](#) for `list`, `update`, `uninstall`, version pinning, and per-target installs.
+Open Claude Code in an empty folder and describe the system in plain English. No slash command — the skill fires on natural-language descriptions of agent systems.
 
-The skill teaches any coding agent how to architect and ship a complete multi-reasoner backend on AgentField — composite-intelligence patterns, deep DAG composition, scaffold-to-curl in one workflow. Once installed, just open Claude Code / Codex / etc. and ask **"build me a multi-reasoner agent that does X"** — the skill fires automatically.
+```text
+> build me a claims-processor agent with risk scoring,
+  pattern detection, and human approval for low-confidence decisions
+
+● Using agentfield-multi-reasoner-builder to architect your system…
+
+  ✓ Decomposing into 7 reasoners, depth 4
+  ✓ Scaffolding claims-processor/ with docker-compose
+  ✓ Wiring orchestrator → risk_scorer, pattern_detector, approver
+  ✓ Generating Pydantic schemas, tags, and policy gates
+  ✓ Running smoke test: curl /api/v1/execute/… → 200 OK
+
+  Your agent is ready. `af server` & `python main.py`
+```
+
+The skill encodes the architecture — five principles (granular decomposition, guided autonomy, dynamic orchestration, contextual fidelity, asynchronous parallelism) that turn a one-line ask into a real multi-reasoner system, not a CrewAI clone. [Full walkthrough →](https://agentfield.ai/docs/learn/build-with-claude-code?utm_source=github-readme&utm_campaign=github-readme&utm_id=github-readme-build-with-claude-code)
+
+Prompts that work well:
+
+```text
+Build a research agent that spawns parallel investigators, scores coverage,
+and recurses into deeper sub-questions until the answer has citation-grade provenance.
+
+Build a compliance reviewer for customer support transcripts — extract claims,
+check each against policy, flag violations, emit a signed audit trail.
+
+Build a security-audit pipeline that traces every vulnerability from source
+to sink, then adversarially verifies each finding before reporting.
+```
+
+> **Already have `af` installed and just want the skill?** `af skill install` (interactive picker) or `af skill install --all` (every detected agent). See [`af skill --help`](https://agentfield.ai/docs/reference/sdks/cli?utm_source=github-readme&utm_campaign=github-readme&utm_id=github-readme-af-skill-help) for `list`, `update`, `uninstall`, version pinning, and per-target installs.
+>
+> **Just want the binary, no skill?** `curl -fsSL https://agentfield.ai/install.sh | bash -s -- --no-skill`
+
+## Prefer to write it yourself?
 
 ```bash
+af init my-agent --defaults                            # Scaffold agent
+cd my-agent && pip install -r requirements.txt
 af server          # Terminal 1 → Dashboard at http://localhost:8080
 python main.py     # Terminal 2 → Agent auto-registers
 ```
