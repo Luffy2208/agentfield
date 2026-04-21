@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.71-rc.3] - 2026-04-21
+
+
+### Chores
+
+- Chore(deps): bump python-dotenv
+
+Bumps the uv group with 1 update in the /sdk/python directory: [python-dotenv](https://github.com/theskumar/python-dotenv).
+
+
+Updates `python-dotenv` from 1.0.1 to 1.2.2
+- [Release notes](https://github.com/theskumar/python-dotenv/releases)
+- [Changelog](https://github.com/theskumar/python-dotenv/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/theskumar/python-dotenv/compare/v1.0.1...v1.2.2)
+
+---
+updated-dependencies:
+- dependency-name: python-dotenv
+  dependency-version: 1.2.2
+  dependency-type: indirect
+  dependency-group: uv
+...
+
+Signed-off-by: dependabot[bot] <support@github.com> (acec60c)
+
 ## [0.1.71-rc.2] - 2026-04-21
 
 
