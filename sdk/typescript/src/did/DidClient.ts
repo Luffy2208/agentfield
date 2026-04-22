@@ -219,19 +219,12 @@ export class DidClient {
   }
 
 
-  async verifyCredential(vcDocument: any, signature?: string): Promise<any> {
-    const payload: any = {
-      vc_document: vcDocument
-    };
-
-    // Only include signature if explicitly provided
-    if (signature !== undefined) {
-      payload.signature = signature;
-    }
-
-    const res = await this.http.post('/api/v1/did/verify', payload, {
-      headers: this.mergeHeaders()
-    });
+  async verifyCredential(vcDocument: any): Promise<any> {
+    const res = await this.http.post(
+      '/api/v1/did/verify',
+      { vc_document: vcDocument },
+      { headers: this.mergeHeaders() }
+    );
 
     return res.data ?? null;
   }

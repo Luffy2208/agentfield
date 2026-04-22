@@ -247,23 +247,15 @@ describe('DidClient exported methods', () => {
       }
     });
 
-    const result = await client.verifyCredential(
-      {
-        id: 'urn:agentfield:vc:vc-1',
-        proof: { proofValue: 'embedded-signature' }
-      },
-      'detached-signature'
-    );
+    const vcDocument = {
+      id: 'urn:agentfield:vc:vc-1',
+      proof: { proofValue: 'embedded-signature' }
+    };
+    const result = await client.verifyCredential(vcDocument);
 
     expect(http.post).toHaveBeenCalledWith(
       '/api/v1/did/verify',
-      {
-        vc_document: {
-          id: 'urn:agentfield:vc:vc-1',
-          proof: { proofValue: 'embedded-signature' }
-        },
-        signature: 'detached-signature'
-      },
+      { vc_document: vcDocument },
       {
         headers: {
           Authorization: 'Bearer token'
@@ -277,7 +269,7 @@ describe('DidClient exported methods', () => {
     });
   });
 
-  it('verifies credential without detached signature', async () => {
+  it('verifies credential without extra headers', async () => {
     const client = new DidClient('http://localhost:8080');
     const http = getCreatedClient();
 

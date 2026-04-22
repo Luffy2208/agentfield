@@ -670,7 +670,7 @@ describe('TypeScript SDK integration', () => {
     expect(vc1.vcDocument.credentialSubject.execution_id).toBe(vc1.executionId);
     expect(vc2.vcDocument.credentialSubject.execution_id).toBe(vc2.executionId);
 
-    const verification = await did.verifyCredential(vc1.vcDocument, vc1.signature);
+    const verification = await did.verifyCredential(vc1.vcDocument);
     expect(verification.valid).toBe(true);
     expect(verification.issuer_did).toBe(callerDid);
 
