@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.72-rc.4] - 2026-04-25
+
+
+### Chores
+
+- Chore(deps): bump the npm_and_yarn group across 3 directories with 1 update
+
+Bumps the npm_and_yarn group with 1 update in the /control-plane/web/client directory: [postcss](https://github.com/postcss/postcss).
+Bumps the npm_and_yarn group with 1 update in the /examples/python_agent_nodes/rag_evaluation/ui directory: [postcss](https://github.com/postcss/postcss).
+Bumps the npm_and_yarn group with 1 update in the /sdk/typescript directory: [postcss](https://github.com/postcss/postcss).
+
+
+Updates `postcss` from 8.5.8 to 8.5.10
+- [Release notes](https://github.com/postcss/postcss/releases)
+- [Changelog](https://github.com/postcss/postcss/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/postcss/postcss/compare/8.5.8...8.5.10)
+
+Updates `postcss` from 8.5.6 to 8.5.10
+- [Release notes](https://github.com/postcss/postcss/releases)
+- [Changelog](https://github.com/postcss/postcss/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/postcss/postcss/compare/8.5.8...8.5.10)
+
+Updates `postcss` from 8.5.8 to 8.5.10
+- [Release notes](https://github.com/postcss/postcss/releases)
+- [Changelog](https://github.com/postcss/postcss/blob/main/CHANGELOG.md)
+- [Commits](https://github.com/postcss/postcss/compare/8.5.8...8.5.10)
+
+---
+updated-dependencies:
+- dependency-name: postcss
+  dependency-version: 8.5.10
+  dependency-type: direct:development
+  dependency-group: npm_and_yarn
+- dependency-name: postcss
+  dependency-version: 8.5.10
+  dependency-type: direct:development
+  dependency-group: npm_and_yarn
+- dependency-name: postcss
+  dependency-version: 8.5.10
+  dependency-type: indirect
+  dependency-group: npm_and_yarn
+...
+
+Signed-off-by: dependabot[bot] <support@github.com> (21cf571)
+
 ## [0.1.72-rc.3] - 2026-04-24
 
 
