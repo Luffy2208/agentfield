@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.72-rc.7] - 2026-04-28
+
+
+### Other
+
+- Refactor/split agent go (#503)
+
+* refactor(sdk-go): split reasoner registration methods
+
+Move RegisterReasoner out of agent.go into agent_register.go as a pure file split to reduce file size and keep behavior unchanged.
+
+Made-with: Cursor
+
+* refactor(sdk-go): split agent lifecycle methods
+
+Move lifecycle and server orchestration methods out of agent.go into agent_lifecycle.go with no behavior changes.
+
+Made-with: Cursor
+
+* refactor(sdk-go): split DID and VC methods
+
+Move DID initialization and VC helper methods out of agent.go into agent_did.go as pure method moves.
+
+Made-with: Cursor
+
+* refactor(sdk-go): cover extracted agent method files
+
+Add focused tests for the new lifecycle, DID, and registration files (d315eab)
+
 ## [0.1.72-rc.6] - 2026-04-27
 
 
