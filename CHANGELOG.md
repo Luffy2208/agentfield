@@ -6,6 +6,105 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.79] - 2026-05-08
+
+## [0.1.79-rc.1] - 2026-05-08
+
+
+### Fixed
+
+- Fix(sdk): exclude Agent.pause() time from reasoner wall-clock timeout (#552)
+
+* feat(sdk): add PauseClock to track paused intervals per execution
+
+PauseClock records the cumulative time a reasoner has spent inside
+Agent.pause() / Agent.wait_for_resume(). The reasoner-level wall-clock
+timeout in _execute_async_with_callback consumes this so paused
+seconds don't count against the active-time budget.
+
+No behaviour change yet — wired up in a follow-up commit.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* fix(sdk): exclude pause() time from reasoner wall-clock timeout
+
+The async reasoner timeout in _execute_async_with_callback was a
+straight wallclock asyncio.wait_for around the reasoner coroutine.
+That meant time spent inside Agent.pause() — waiting for an external
+human approval via hax-sdk or similar — was billed against the same
+budget. The expires_in_hours argument to pause() was silently capped
+at the reasoner timeout (default 7200s), so a reviewer who took longer
+than two hours to respond would always see "Reasoner 'build' timed out
+after 7200.0s" regardless of expires_in_hours.
+
+Replace the asyncio.wait_for with a watchdog task that subtracts the
+PauseClock's accumulated paused time from elapsed wall-clock before
+comparing against the budget. pause() and wait_for_resume() update the
+clock around their own asyncio.wait_for so the watchdog discounts the
+wait. Active CPU/IO time past the budget still trips the watchdog and
+produces the same reasoner_timeout failure payload.
+
+The watchdog distinguishes its own timeout-cancel from an external
+cooperative cancel by setting PauseClock.timed_out before cancelling
+the reasoner task; the CancelledError handler branches on that flag to
+emit either a "failed/reasoner_timeout" payload or the existing
+"cancelled_by_control_plane" payload.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* test(sdk): cover pause-aware reasoner timeout
+
+Two tests added against the async reasoner path:
+
+- A reasoner that calls Agent.pause() for longer than
+  default_execution_timeout still succeeds once the approval webhook
+  resolves the future. Without the PauseClock subtraction the watchdog
+  would have fired first and produced a reasoner_timeout failure.
+
+- A reasoner doing real asyncio work past the active budget still
+  trips the watchdog and emits a failed/reasoner_timeout payload. This
+  guards against the subtraction accidentally disabling the safety net.
+
+Both tests filter for terminal status callbacks (succeeded / failed /
+cancelled) rather than any /executions/ URL, since the workflow event
+bus also posts running-status events that would otherwise race the
+terminal callback.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* test(sdk): wire _pause_clocks into Agent test fixture
+
+The make_agent() helper in test_agent_coverage_additions.py builds an
+Agent via object.__new__(Agent) and manually pins the attributes the
+tests-under-test consume.  After the previous commit the pause() and
+wait_for_resume() paths read self._pause_clocks, so the fixture has to
+provide it.  Empty dict is the right default — none of the affected
+tests exercise the paused-time accounting, only that pause()/wait_for_resume()
+return the expected ApprovalResult shapes on timeout.
+
+Caught by the lint-and-test (3.10/3.11/3.12) CI jobs on the parent PR.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* test(sdk): unit-cover PauseClock and external-cancel-during-pause
+
+Five direct unit tests pin PauseClock semantics (zero-baseline, interval
+accumulation, in-progress visibility, double-start idempotency, no-op
+end-without-start).  These give a sharper failure signal than the
+end-to-end Agent tests when the primitive itself regresses.
+
+A sixth integration test fires a cooperative cancel (via the same path
+the control-plane CancelDispatcher uses) while the reasoner is parked
+inside Agent.pause().  Without the watchdog/external-cancel disambig
+the cancel would surface as a phantom reasoner_timeout — this test
+locks in that the payload is "cancelled".
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (755a80c)
+
 ## [0.1.78] - 2026-05-07
 
 ## [0.1.78-rc.5] - 2026-05-07
