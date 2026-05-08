@@ -6,6 +6,100 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.80] - 2026-05-08
+
+## [0.1.80-rc.1] - 2026-05-08
+
+
+### Fixed
+
+- Fix(sdk): propagate child pause state across app.call to parent pause-clock (#555)
+
+* feat(sdk): add status-listener hook to AsyncExecutionManager
+
+Lets external code react to every observed execution status transition
+the manager learns about over its SSE event stream. Also recognizes
+``execution.waiting`` events and the canonical ``waiting``/``paused``
+status hints, mapping them to ``ExecutionStatus.WAITING`` so callers can
+distinguish a child that's parked on an external await from one that's
+actively running.
+
+The next commit uses this hook to propagate child pauses up to the
+parent reasoner's pause-clock.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* fix(sdk): propagate child pause state to parent pause-clock through app.call
+
+When a parent reasoner calls a child via ``app.call`` and the child
+enters ``app.pause`` (e.g. waiting on a hax-sdk human approval), the
+parent's pause-clock must be paused too — otherwise the parent's
+``default_execution_timeout`` watchdog burns through the child's
+human-response time and cancels the parent at 7200s while the child is
+correctly waiting.
+
+Symptom: SWE-AF ``implement_from_issue`` -> ``swe-planner.build`` chains
+hit ``Reasoner timed out after 7200.0s`` when build paused for hax-sdk
+approval, even with the v0.1.79 pause-clock fix in place — that fix
+was scoped to the reasoner that called ``pause()``, not to ancestors
+awaiting it via ``app.call``.
+
+Mechanism:
+- New ``Agent._waiting_children`` registry maps child_execution_id to
+  parent_execution_id; populated by ``call()`` for cross-agent waits
+  whose parent has a tracked pause-clock.
+- ``_parent_paused_children`` refcount of currently-paused children per
+  parent; ensures multiple children pausing in parallel don't double-
+  toggle the parent clock and that the parent stays paused while ANY
+  awaited child is still in WAITING.
+- Listener registered on the AsyncExecutionManager observes the SSE
+  ``execution.waiting`` / ``execution.running`` transitions for awaited
+  children and toggles the parent's pause-clock accordingly.
+- ``client.wait_for_execution_result`` and ``manager.wait_for_result``
+  accept an optional ``pause_clock`` kwarg whose accumulated paused
+  seconds are subtracted from elapsed wall-clock when checking the
+  wait timeout — without this the wait itself would still time out at
+  7200s during long human-approval gaps even with the propagation
+  hooked up.
+- Updated test_agent_coverage_additions.py fixture for the new Agent
+  attributes; the bypass-init pattern there constructs Agent via
+  ``object.__new__`` and needs each new instance attribute mirrored.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* test(sdk): cover cross-reasoner pause-clock propagation
+
+- Direct unit tests for ``Agent._on_child_status_change``: WAITING
+  pauses the parent clock, RUNNING resumes it, parallel children
+  refcount correctly, unrelated executions are ignored, terminal
+  events clean up the registry.
+- Integration test for ``manager.wait_for_result`` with a synthetic
+  pause_clock: the wait survives a paused interval that exceeds the
+  configured timeout, and the same setup without the pause_clock kwarg
+  still times out (regression guard).
+- SSE event-stream handler tests: ``execution.waiting`` events fire the
+  listener with WAITING status, duplicate transitions don't re-fire,
+  unknown executions are ignored.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* fix(sdk): satisfy ruff F821/F401 on cross-reasoner pause propagation
+
+Two lint regressions caught by CI but not by my local pytest run:
+
+- ``Agent._on_child_status_change`` annotated ``status`` as a string
+  forward-ref ``"ExecutionStatus"`` without a corresponding TYPE_CHECKING
+  import; ruff F821 flagged it. Add the TYPE_CHECKING import alongside
+  the existing harness imports.
+- ``test_wait_for_result_subtracts_pause_clock_from_elapsed`` imported
+  ``ExecutionStatus`` it never used; ruff F401. Drop the import.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (d78fbf7)
+
 ## [0.1.79] - 2026-05-08
 
 ## [0.1.79-rc.1] - 2026-05-08
