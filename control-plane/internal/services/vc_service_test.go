@@ -26,7 +26,7 @@ func setupVCTestEnvironment(t *testing.T) (*VCService, *DIDService, storage.Stor
 	require.NoError(t, err)
 
 	didCfg := &config.DIDConfig{
-		Enabled: true,
+		Enabled:  true,
 		Keystore: config.KeystoreConfig{Path: keystoreDir, Type: "local"},
 		VCRequirements: config.VCRequirements{
 			RequireVCForExecution: true,
@@ -43,6 +43,58 @@ func setupVCTestEnvironment(t *testing.T) (*VCService, *DIDService, storage.Stor
 	require.NoError(t, vcService.Initialize())
 
 	return vcService, didService, provider, ctx
+}
+
+func setupExecutionVCForVerificationTest(t *testing.T) (*VCService, *DIDService, context.Context, *types.ExecutionVC, *types.VCDocument) {
+	t.Helper()
+
+	vcService, didService, _, ctx := setupVCTestEnvironment(t)
+
+	req := &types.DIDRegistrationRequest{
+		AgentNodeID: "agent-verify",
+		Reasoners:   []types.ReasonerDefinition{{ID: "reasoner1"}},
+	}
+
+	regResp, err := didService.RegisterAgent(req)
+	require.NoError(t, err)
+	require.True(t, regResp.Success)
+
+	callerDID := regResp.IdentityPackage.ReasonerDIDs["reasoner1"].DID
+
+	execCtx := &types.ExecutionContext{
+		ExecutionID:  "exec-verify",
+		WorkflowID:   "workflow-1",
+		SessionID:    "session-1",
+		CallerDID:    callerDID,
+		TargetDID:    "",
+		AgentNodeDID: regResp.IdentityPackage.AgentDID.DID,
+		Timestamp:    time.Now(),
+	}
+
+	vc, err := vcService.GenerateExecutionVC(execCtx, []byte(`{"input": "test"}`), []byte(`{"output": "result"}`), "succeeded", nil, 100)
+	require.NoError(t, err)
+
+	var vcDoc types.VCDocument
+	require.NoError(t, json.Unmarshal(vc.VCDocument, &vcDoc))
+
+	return vcService, didService, ctx, vc, &vcDoc
+}
+
+func marshalSignedVCDocument(t *testing.T, vcService *VCService, didService *DIDService, vcDoc *types.VCDocument) json.RawMessage {
+	t.Helper()
+
+	issuerIdentity, err := didService.ResolveDID(vcDoc.Issuer)
+	require.NoError(t, err)
+
+	signature, err := vcService.signVC(vcDoc, issuerIdentity)
+	require.NoError(t, err)
+
+	vcDoc.Proof.ProofValue = signature
+
+	vcDocument, err := json.Marshal(vcDoc)
+	require.NoError(t, err)
+
+	return vcDocument
 }
 
 func TestVCService_IsExecutionVCEnabled(t *testing.T) {
@@ -390,39 +442,15 @@ func TestVCService_GenerateExecutionVC_LongErrorMessage(t *testing.T) {
 }
 
 func TestVCService_VerifyVC_Success(t *testing.T) {
-	vcService, didService, _, _ := setupVCTestEnvironment(t)
-
-	// Register an agent and generate a VC
-	req := &types.DIDRegistrationRequest{
-		AgentNodeID: "agent-verify",
-		Reasoners:   []types.ReasonerDefinition{{ID: "reasoner1"}},
-	}
-
-	regResp, err := didService.RegisterAgent(req)
-	require.NoError(t, err)
-	require.True(t, regResp.Success)
-
-	callerDID := regResp.IdentityPackage.ReasonerDIDs["reasoner1"].DID
-
-	execCtx := &types.ExecutionContext{
-		ExecutionID:  "exec-verify",
-		WorkflowID:   "workflow-1",
-		SessionID:    "session-1",
-		CallerDID:    callerDID,
-		TargetDID:    "",
-		AgentNodeDID: regResp.IdentityPackage.AgentDID.DID,
-		Timestamp:    time.Now(),
-	}
-
-	vc, err := vcService.GenerateExecutionVC(execCtx, []byte(`{"input": "test"}`), []byte(`{"output": "result"}`), "succeeded", nil, 100)
-	require.NoError(t, err)
+	vcService, _, _, vc, _ := setupExecutionVCForVerificationTest(t)
 
 	// Verify the VC
 	verifyResp, err := vcService.VerifyVC(vc.VCDocument)
 	require.NoError(t, err)
 	require.NotNil(t, verifyResp)
 	require.True(t, verifyResp.Valid)
-	require.Equal(t, callerDID, verifyResp.IssuerDID)
+	require.Empty(t, verifyResp.Reason)
+	require.Equal(t, vc.IssuerDID, verifyResp.IssuerDID)
 	require.NotEmpty(t, verifyResp.IssuedAt)
 	require.Contains(t, verifyResp.Message, "verified successfully")
 }
@@ -437,6 +465,7 @@ func TestVCService_VerifyVC_InvalidDocument(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, verifyResp)
 	require.False(t, verifyResp.Valid)
+	require.Equal(t, types.VCVerificationReasonUnknownIssuer, verifyResp.Reason)
 	require.Contains(t, verifyResp.Error, "failed to resolve issuer DID")
 }
 
@@ -453,42 +482,15 @@ func TestVCService_VerifyVC_DisabledSystem(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, verifyResp)
 	require.False(t, verifyResp.Valid)
+	require.Equal(t, types.VCVerificationReasonSystemDisabled, verifyResp.Reason)
 	require.Contains(t, verifyResp.Error, "DID system is disabled")
 	_ = ctx
 }
 
 func TestVCService_VerifyVC_TamperedSignature(t *testing.T) {
-	vcService, didService, _, _ := setupVCTestEnvironment(t)
-
-	// Register an agent and generate a VC
-	req := &types.DIDRegistrationRequest{
-		AgentNodeID: "agent-tamper",
-		Reasoners:   []types.ReasonerDefinition{{ID: "reasoner1"}},
-	}
-
-	regResp, err := didService.RegisterAgent(req)
-	require.NoError(t, err)
-	require.True(t, regResp.Success)
-
-	callerDID := regResp.IdentityPackage.ReasonerDIDs["reasoner1"].DID
-
-	execCtx := &types.ExecutionContext{
-		ExecutionID:  "exec-tamper",
-		WorkflowID:   "workflow-1",
-		SessionID:    "session-1",
-		CallerDID:    callerDID,
-		TargetDID:    "",
-		AgentNodeDID: regResp.IdentityPackage.AgentDID.DID,
-		Timestamp:    time.Now(),
-	}
-
-	vc, err := vcService.GenerateExecutionVC(execCtx, []byte(`{"input": "test"}`), []byte(`{"output": "result"}`), "succeeded", nil, 100)
-	require.NoError(t, err)
+	vcService, _, _, vc, vcDoc := setupExecutionVCForVerificationTest(t)
 
 	// Tamper with the signature
-	var vcDoc types.VCDocument
-	err = json.Unmarshal(vc.VCDocument, &vcDoc)
-	require.NoError(t, err)
 	vcDoc.Proof.ProofValue = "tampered_signature"
 
 	tamperedDoc, err := json.Marshal(vcDoc)
@@ -498,41 +500,15 @@ func TestVCService_VerifyVC_TamperedSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, verifyResp)
 	require.False(t, verifyResp.Valid)
+	require.Equal(t, types.VCVerificationReasonInvalidSignature, verifyResp.Reason)
 	require.Contains(t, verifyResp.Message, "Invalid signature")
+	require.Equal(t, vc.IssuerDID, vcDoc.Issuer)
 }
 
 func TestVCService_VerifyVC_InvalidIssuerDID(t *testing.T) {
-	vcService, didService, _, _ := setupVCTestEnvironment(t)
-
-	// Register an agent and generate a VC
-	req := &types.DIDRegistrationRequest{
-		AgentNodeID: "agent-invalid-issuer",
-		Reasoners:   []types.ReasonerDefinition{{ID: "reasoner1"}},
-	}
-
-	regResp, err := didService.RegisterAgent(req)
-	require.NoError(t, err)
-	require.True(t, regResp.Success)
-
-	callerDID := regResp.IdentityPackage.ReasonerDIDs["reasoner1"].DID
-
-	execCtx := &types.ExecutionContext{
-		ExecutionID:  "exec-invalid-issuer",
-		WorkflowID:   "workflow-1",
-		SessionID:    "session-1",
-		CallerDID:    callerDID,
-		TargetDID:    "",
-		AgentNodeDID: regResp.IdentityPackage.AgentDID.DID,
-		Timestamp:    time.Now(),
-	}
-
-	vc, err := vcService.GenerateExecutionVC(execCtx, []byte(`{"input": "test"}`), []byte(`{"output": "result"}`), "succeeded", nil, 100)
-	require.NoError(t, err)
+	vcService, _, _, _, vcDoc := setupExecutionVCForVerificationTest(t)
 
 	// Change the issuer DID to an invalid one
-	var vcDoc types.VCDocument
-	err = json.Unmarshal(vc.VCDocument, &vcDoc)
-	require.NoError(t, err)
 	vcDoc.Issuer = "did:key:invalid"
 
 	invalidDoc, err := json.Marshal(vcDoc)
@@ -542,7 +518,116 @@ func TestVCService_VerifyVC_InvalidIssuerDID(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, verifyResp)
 	require.False(t, verifyResp.Valid)
+	require.Equal(t, types.VCVerificationReasonUnknownIssuer, verifyResp.Reason)
 	require.Contains(t, verifyResp.Error, "failed to resolve issuer DID")
+}
+
+func TestVCService_VerifyVC_EnforcesLifecycleAndProofValidation(t *testing.T) {
+	tests := []struct {
+		name              string
+		mutate            func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage
+		wantValid         bool
+		wantReason        types.VCVerificationReason
+		wantMessageSubstr string
+		wantErrorSubstr   string
+	}{
+		{
+			name:      "valid",
+			wantValid: true,
+		},
+		{
+			name: "expired",
+			mutate: func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage {
+				vcDoc.ExpirationDate = formatVCDateTime(time.Now().Add(-1 * time.Hour))
+				return marshalSignedVCDocument(t, vcService, didService, vcDoc)
+			},
+			wantReason:        types.VCVerificationReasonExpired,
+			wantMessageSubstr: "expired",
+		},
+		{
+			name: "not before in future",
+			mutate: func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage {
+				vcDoc.NotBefore = formatVCDateTime(time.Now().Add(1 * time.Hour))
+				return marshalSignedVCDocument(t, vcService, didService, vcDoc)
+			},
+			wantReason:        types.VCVerificationReasonNotYetValid,
+			wantMessageSubstr: "not valid before",
+		},
+		{
+			name: "revoked",
+			mutate: func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage {
+				execVC.Status = "revoked"
+				require.NoError(t, vcService.vcStorage.StoreExecutionVC(ctx, execVC))
+				return execVC.VCDocument
+			},
+			wantReason:        types.VCVerificationReasonRevoked,
+			wantMessageSubstr: "revoked",
+		},
+		{
+			name: "proof purpose mismatch",
+			mutate: func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage {
+				vcDoc.Proof.ProofPurpose = "authentication"
+				vcDocument, err := json.Marshal(vcDoc)
+				require.NoError(t, err)
+				return vcDocument
+			},
+			wantReason:        types.VCVerificationReasonProofPurposeMismatch,
+			wantMessageSubstr: "proofPurpose",
+		},
+		{
+			name: "unknown issuer",
+			mutate: func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage {
+				vcDoc.Issuer = "did:key:unknown"
+				vcDocument, err := json.Marshal(vcDoc)
+				require.NoError(t, err)
+				return vcDocument
+			},
+			wantReason:      types.VCVerificationReasonUnknownIssuer,
+			wantErrorSubstr: "failed to resolve issuer DID",
+		},
+		{
+			name: "invalid signature",
+			mutate: func(t *testing.T, vcService *VCService, didService *DIDService, ctx context.Context, execVC *types.ExecutionVC, vcDoc *types.VCDocument) json.RawMessage {
+				vcDoc.Proof.ProofValue = "tampered_signature"
+				vcDocument, err := json.Marshal(vcDoc)
+				require.NoError(t, err)
+				return vcDocument
+			},
+			wantReason:        types.VCVerificationReasonInvalidSignature,
+			wantMessageSubstr: "Invalid signature",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vcService, didService, ctx, execVC, vcDoc := setupExecutionVCForVerificationTest(t)
+
+			vcDocument := execVC.VCDocument
+			if tt.mutate != nil {
+				vcDocument = tt.mutate(t, vcService, didService, ctx, execVC, vcDoc)
+			}
+
+			verifyResp, err := vcService.VerifyVC(vcDocument)
+			require.NoError(t, err)
+			require.NotNil(t, verifyResp)
+			require.Equal(t, tt.wantValid, verifyResp.Valid)
+			require.Equal(t, tt.wantReason, verifyResp.Reason)
+
+			if tt.wantValid {
+				require.Equal(t, execVC.IssuerDID, verifyResp.IssuerDID)
+				require.NotEmpty(t, verifyResp.IssuedAt)
+				require.Contains(t, verifyResp.Message, "verified successfully")
+				return
+			}
+
+			if tt.wantMessageSubstr != "" {
+				require.Contains(t, verifyResp.Message, tt.wantMessageSubstr)
+			}
+			if tt.wantErrorSubstr != "" {
+				require.Contains(t, verifyResp.Error, tt.wantErrorSubstr)
+			}
+		})
+	}
 }
 
 func TestVCService_GetWorkflowVCStatusSummaries(t *testing.T) {
