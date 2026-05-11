@@ -6,6 +6,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) 
 
 <!-- changelog:entries -->
 
+## [0.1.84-rc.1] - 2026-05-11
+
+
+### Other
+
+- Obs(sdk): info-level diagnostics on the pause-cascade hot path (#569)
+
+* obs(sdk): info-level diagnostics on the pause-cascade hot path
+
+Cascade fired correctly in local repros but didn't on run
+run_1778458437977_fb6f588b (implement_from_issue timed out at exactly
+7200.0s "active time" while swe-planner.build was paused on a hax
+approval for ~20min — math says pause_clock.total_paused()=0 despite
+the awaited child being visibly WAITING in the CP). All cascade
+toggles were debug-only, so production logs gave no signal on which
+specific link broke. Promotes five points to INFO so the next
+occurrence is diagnosable from logs alone:
+
+- agent.py: log pause_clock registration with id+execution_id, log
+  parent_pause_clock lookup result at app.call time (including the
+  _pause_clocks keyset so a missing-entry case is visible), and log
+  full pause_clock state at the moment the watchdog fires (wall
+  elapsed, total_paused, active_elapsed, budget). The last one in
+  particular tells "legitimate long active work" apart from "cascade
+  never ran" without needing to re-derive it from the timeline.
+
+- async_execution_manager.py: log start_pause / end_pause on the
+  parent's pause_clock with the awaited child id + clock id, and log
+  poll-observed WAITING<->RUNNING transitions for the awaited child
+  (other status transitions stay at debug). The two together pin
+  exactly when the polling task saw WAITING and whether the wait
+  loop translated that observation into a clock pause.
+
+No behavior change — same imports, same control flow. Safe on hot
+paths: at most one log line per status transition on the awaited
+child, and a one-line registration on reasoner entry.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+* test(sdk): widen WAITING/RUNNING windows in cascade test
+
+test_wait_for_result_invokes_callbacks_on_child_waiting_transitions
+raced the wait loop's 0.1s poll interval — original 0.05s gap between
+the RUNNING transition and the SUCCEEDED transition meant the loop
+had a coin-flip chance of seeing WAITING then jumping straight to
+SUCCEEDED, never firing on_child_running. Any added work in the
+toggle block (e.g. the diagnostic logger.info lines from the prior
+commit) shifts that race; passed on 3.12, failed on 3.10/3.11.
+
+Fix: bump both inter-transition sleeps from 0.05/0.20 to 0.30s — well
+above the loop's poll interval — so each transition is observed
+deterministically. The same widening applied to only this test
+because the neighbouring test_wait_for_result_pauses_clock_on_child_waiting
+asserts only total_paused() (which includes the in-progress pause via
+PauseClock.total_paused) and so doesn't race the way this one did.
+
+Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
+
+---------
+
+Co-authored-by: Claude Opus 4.7 (1M context) <noreply@anthropic.com> (1bd51fa)
+
 ## [0.1.83] - 2026-05-10
 
 ## [0.1.83-rc.2] - 2026-05-10
