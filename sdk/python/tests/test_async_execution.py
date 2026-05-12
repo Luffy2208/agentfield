@@ -517,6 +517,203 @@ async def test_wait_for_result_preserves_budget_across_long_wait():
     assert result == {"value": 42}
 
 
+# ---------------------------------------------------------------------------
+# Multi-hop pause propagation
+#
+# A reasoner R that's awaiting a child via app.call() blocks for the duration
+# the child sits in WAITING. Today only R's *local* pause_clock pauses — R's
+# *status* in the control plane stays RUNNING. If R has its own parent G,
+# G's wait loop polls R's status, sees RUNNING, and never pauses G's clock —
+# producing the 7200s timeout on the great-grandparent observed in run
+# run_1778429268006_76e417b7 (implement_from_issue → build → plan → run_X
+# where only run_X explicitly called app.pause()).
+#
+# The fix: wait_for_result accepts on_child_waiting / on_child_running async
+# callbacks, fired in lockstep with start_pause / end_pause on the local
+# clock. Agent.call wires these to push the awaiter's OWN status as WAITING
+# to the control plane, so the next hop up sees WAITING and the chain
+# propagates transparently to arbitrary depth.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_wait_for_result_invokes_callbacks_on_child_waiting_transitions():
+    """When the awaited child enters WAITING, ``wait_for_result`` must fire
+    the ``on_child_waiting`` callback alongside ``pause_clock.start_pause()``.
+    When the child exits WAITING, it must fire ``on_child_running`` alongside
+    ``end_pause``. This is the hook ``Agent.call`` uses to push its own
+    execution's status upstream so multi-hop pause propagation works.
+
+    Pins the new SDK contract — without these callbacks the SDK has no way
+    to tell the control plane "I am also waiting now" while it's blocked in
+    its own wait loop, and any ancestor 2+ hops up times out at wallclock."""
+    from agentfield.async_execution_manager import AsyncExecutionManager
+    from agentfield.async_config import AsyncConfig
+    from agentfield.execution_state import ExecutionState, ExecutionStatus
+
+    manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
+    exec_id = "exec-multihop-child"
+    state = ExecutionState(
+        execution_id=exec_id,
+        target="agent.reasoner",
+        input_data={},
+        timeout=5.0,
+    )
+    state.update_status(ExecutionStatus.RUNNING)
+    manager._executions[exec_id] = state
+
+    parent_clock = PauseClock()
+    waiting_events: list[float] = []
+    running_events: list[float] = []
+
+    async def on_child_waiting() -> None:
+        waiting_events.append(time.time())
+
+    async def on_child_running() -> None:
+        running_events.append(time.time())
+
+    async def _drive_polling():
+        await asyncio.sleep(0.05)
+        async with manager._execution_lock:
+            state.update_status(ExecutionStatus.WAITING)
+        # Keep the WAITING and RUNNING windows comfortably above the wait
+        # loop's 0.1s poll interval so the loop is guaranteed to observe
+        # each transition before the next one happens. The original 0.05s
+        # post-RUNNING gap raced with the loop's poll cycle and any added
+        # work inside the toggle block (logging, callback overhead) tipped
+        # the race the wrong way on 3.10/3.11 — the loop would see
+        # WAITING then jump straight to SUCCEEDED, never firing
+        # on_child_running.
+        await asyncio.sleep(0.30)
+        async with manager._execution_lock:
+            state.update_status(ExecutionStatus.RUNNING)
+        await asyncio.sleep(0.30)
+        async with manager._execution_lock:
+            state.set_result({"ok": True})
+
+    poller = asyncio.create_task(_drive_polling())
+    result = await manager.wait_for_result(
+        exec_id,
+        timeout=5.0,
+        pause_clock=parent_clock,
+        on_child_waiting=on_child_waiting,
+        on_child_running=on_child_running,
+    )
+    await poller
+
+    assert result == {"ok": True}
+    assert len(waiting_events) == 1, (
+        f"on_child_waiting should fire exactly once when child enters WAITING; "
+        f"fired {len(waiting_events)} times"
+    )
+    assert len(running_events) == 1, (
+        f"on_child_running should fire exactly once when child exits WAITING; "
+        f"fired {len(running_events)} times"
+    )
+    assert running_events[0] > waiting_events[0], (
+        "on_child_running must fire AFTER on_child_waiting"
+    )
+    # The callbacks must fire in lockstep with the local pause-clock toggles.
+    assert parent_clock.total_paused() >= 0.15
+
+
+@pytest.mark.asyncio
+async def test_wait_for_result_callbacks_optional_for_backward_compat():
+    """A caller that doesn't pass the new callbacks must see no change in
+    behavior. The pause_clock toggle and overall wait semantics stay identical
+    to the existing tests."""
+    from agentfield.async_execution_manager import AsyncExecutionManager
+    from agentfield.async_config import AsyncConfig
+    from agentfield.execution_state import ExecutionState, ExecutionStatus
+
+    manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
+    exec_id = "exec-multihop-nocallbacks"
+    state = ExecutionState(
+        execution_id=exec_id,
+        target="agent.reasoner",
+        input_data={},
+        timeout=5.0,
+    )
+    state.update_status(ExecutionStatus.RUNNING)
+    manager._executions[exec_id] = state
+
+    parent_clock = PauseClock()
+
+    async def _drive_polling():
+        await asyncio.sleep(0.05)
+        async with manager._execution_lock:
+            state.update_status(ExecutionStatus.WAITING)
+        await asyncio.sleep(0.20)
+        async with manager._execution_lock:
+            state.set_result({"ok": True})
+
+    poller = asyncio.create_task(_drive_polling())
+    result = await manager.wait_for_result(
+        exec_id, timeout=5.0, pause_clock=parent_clock
+    )
+    await poller
+
+    assert result == {"ok": True}
+    assert parent_clock.total_paused() >= 0.15
+
+
+@pytest.mark.asyncio
+async def test_wait_for_result_callback_exceptions_dont_break_wait_loop():
+    """If on_child_waiting / on_child_running raises (e.g. control plane is
+    temporarily unreachable), the wait loop MUST continue — pause-state
+    propagation is best-effort and an HTTP blip up the chain must not crash
+    the awaiter or leave its pause_clock in a stuck state. Pinned because the
+    callbacks fire HTTP calls in production and we never want a transient
+    failure there to break the call graph."""
+    from agentfield.async_execution_manager import AsyncExecutionManager
+    from agentfield.async_config import AsyncConfig
+    from agentfield.execution_state import ExecutionState, ExecutionStatus
+
+    manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
+    exec_id = "exec-multihop-flaky"
+    state = ExecutionState(
+        execution_id=exec_id,
+        target="agent.reasoner",
+        input_data={},
+        timeout=5.0,
+    )
+    state.update_status(ExecutionStatus.RUNNING)
+    manager._executions[exec_id] = state
+
+    parent_clock = PauseClock()
+
+    async def boom_waiting() -> None:
+        raise RuntimeError("control plane unreachable")
+
+    async def boom_running() -> None:
+        raise RuntimeError("control plane unreachable")
+
+    async def _drive_polling():
+        await asyncio.sleep(0.05)
+        async with manager._execution_lock:
+            state.update_status(ExecutionStatus.WAITING)
+        await asyncio.sleep(0.20)
+        async with manager._execution_lock:
+            state.update_status(ExecutionStatus.RUNNING)
+        await asyncio.sleep(0.05)
+        async with manager._execution_lock:
+            state.set_result({"ok": True})
+
+    poller = asyncio.create_task(_drive_polling())
+    result = await manager.wait_for_result(
+        exec_id,
+        timeout=5.0,
+        pause_clock=parent_clock,
+        on_child_waiting=boom_waiting,
+        on_child_running=boom_running,
+    )
+    await poller
+
+    # Result must still come through; clock must still have paused.
+    assert result == {"ok": True}
+    assert parent_clock.total_paused() >= 0.15
+
+
 @pytest.mark.asyncio
 async def test_wait_for_result_without_pause_clock_unaffected():
     """No pause_clock kwarg = no toggling, behaves as a plain wallclock wait.
@@ -552,7 +749,7 @@ async def test_wait_for_result_ends_pause_on_terminal_while_waiting():
     from agentfield.async_execution_manager import AsyncExecutionManager
     from agentfield.async_config import AsyncConfig
     from agentfield.execution_state import ExecutionState, ExecutionStatus
-    from agentfield.exceptions import AgentFieldClientError
+    from agentfield.exceptions import ExecutionCancelledError
 
     manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
     exec_id = "exec-cancelled-while-waiting"
@@ -576,7 +773,7 @@ async def test_wait_for_result_ends_pause_on_terminal_while_waiting():
             state.cancel("user_cancelled_during_approval")
 
     poller = asyncio.create_task(_drive_polling())
-    with pytest.raises(AgentFieldClientError):
+    with pytest.raises(ExecutionCancelledError):
         await manager.wait_for_result(
             exec_id, timeout=5.0, pause_clock=parent_clock
         )
@@ -643,3 +840,139 @@ async def test_wait_for_result_subtracts_pause_clock_from_elapsed():
     manager._executions["exec-strict"] = state2
     with pytest.raises(ExecutionTimeoutError):
         await manager.wait_for_result("exec-strict", timeout=0.1)
+
+
+@pytest.mark.asyncio
+async def test_wait_for_result_attaches_pause_clock_to_execution_state():
+    """The polling task's ``is_overdue`` check must respect the same pause
+    clock that ``wait_for_result`` is using to keep the loop alive. Without
+    this attachment, ``_poll_active_executions`` flips the execution's
+    status to TIMEOUT at exactly wallclock ``timeout`` — and the next iter
+    of the wait loop surfaces it as ``ExecutionTimeoutError(\"Execution
+    timed out after N seconds\")`` even though the child was paused for
+    most of that time.
+
+    Reproduces the production failure mode observed on Railway run
+    run_1778346573033_dafddc40 where github-buddy's ``app.call`` to
+    swe-af.build timed out at exactly 21600s wallclock despite v0.1.81's
+    pause-aware wait loop, because the polling task's overdue check still
+    used pure wallclock age."""
+    from agentfield.async_execution_manager import AsyncExecutionManager
+    from agentfield.async_config import AsyncConfig
+    from agentfield.execution_state import ExecutionState, ExecutionStatus
+
+    manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
+    exec_id = "exec-attach"
+    state = ExecutionState(
+        execution_id=exec_id,
+        target="agent.reasoner",
+        input_data={},
+        timeout=0.5,
+    )
+    state.update_status(ExecutionStatus.WAITING)
+    manager._executions[exec_id] = state
+
+    parent_clock = PauseClock()
+    saw_attached = asyncio.Event()
+    saw_detached = asyncio.Event()
+
+    async def _observe_then_settle():
+        # Wait until wait_for_result has started and attached the clock,
+        # then verify and settle the child so the wait can return cleanly.
+        for _ in range(50):
+            if state._pause_clock is parent_clock:
+                saw_attached.set()
+                break
+            await asyncio.sleep(0.01)
+        assert saw_attached.is_set(), (
+            "wait_for_result did not attach pause_clock to ExecutionState"
+        )
+        async with manager._execution_lock:
+            state.set_result({"ok": True})
+
+    asyncio.create_task(_observe_then_settle())
+    result = await manager.wait_for_result(
+        exec_id, timeout=0.5, pause_clock=parent_clock
+    )
+    assert result == {"ok": True}
+
+    # After wait_for_result returns, the clock must be detached so future
+    # polling passes don't keep subtracting paused time from a stale clock.
+    assert state._pause_clock is None, (
+        "wait_for_result must restore previous _pause_clock on exit"
+    )
+    saw_detached.set()  # marker for readability; kept to mirror saw_attached
+
+
+@pytest.mark.asyncio
+async def test_poll_active_executions_respects_attached_pause_clock():
+    """End-to-end check on the bug: with an attached pause_clock that
+    reports more paused time than the wallclock budget, the polling task
+    must NOT mark the execution TIMEOUT. Without the fix, this test fails
+    immediately because ``is_overdue`` would return True purely from
+    wallclock age."""
+    from agentfield.async_execution_manager import AsyncExecutionManager
+    from agentfield.async_config import AsyncConfig
+    from agentfield.execution_state import ExecutionState, ExecutionStatus
+
+    manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
+    exec_id = "exec-poll-pause"
+    state = ExecutionState(
+        execution_id=exec_id,
+        target="agent.reasoner",
+        input_data={},
+        timeout=0.05,
+    )
+    state.update_status(ExecutionStatus.WAITING)
+    state.next_poll_time = 0.0  # eligible for polling immediately
+
+    class _SteadyClock:
+        """Reports a constant 10s of paused time — much more than the
+        0.05s timeout. With the fix, ``is_overdue`` reads age - 10s
+        which is overwhelmingly negative, so the execution stays alive."""
+
+        def total_paused(self) -> float:
+            return 10.0
+
+    state._pause_clock = _SteadyClock()
+    manager._executions[exec_id] = state
+
+    # Wait long enough that wallclock age exceeds timeout (0.05s).
+    await asyncio.sleep(0.1)
+    assert state.age > state.timeout, "test setup: wallclock age must exceed timeout"
+
+    # Polling pass: would mark TIMEOUT pre-fix; with fix, leaves it alone.
+    await manager._poll_active_executions()
+
+    assert state.status == ExecutionStatus.WAITING, (
+        f"polling task must not flip a paused execution to TIMEOUT, "
+        f"got {state.status}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_poll_active_executions_still_times_out_without_pause_clock():
+    """Backward-compat: without a pause_clock attached, the polling task's
+    overdue check still fires at wallclock — same behaviour as before."""
+    from agentfield.async_execution_manager import AsyncExecutionManager
+    from agentfield.async_config import AsyncConfig
+    from agentfield.execution_state import ExecutionState, ExecutionStatus
+
+    manager = AsyncExecutionManager(base_url="http://control", config=AsyncConfig())
+    exec_id = "exec-no-clock"
+    state = ExecutionState(
+        execution_id=exec_id,
+        target="agent.reasoner",
+        input_data={},
+        timeout=0.05,
+    )
+    state.update_status(ExecutionStatus.RUNNING)
+    state.next_poll_time = 0.0
+    manager._executions[exec_id] = state
+
+    await asyncio.sleep(0.1)
+    await manager._poll_active_executions()
+
+    assert state.status == ExecutionStatus.TIMEOUT, (
+        "no pause_clock attached: wallclock overdue check must still fire"
+    )

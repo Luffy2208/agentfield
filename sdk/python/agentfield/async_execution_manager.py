@@ -20,6 +20,7 @@ from .async_config import AsyncConfig
 from .execution_state import ExecuteError, ExecutionPriority, ExecutionState, ExecutionStatus
 from .exceptions import (
     AgentFieldClientError,
+    ExecutionCancelledError,
     ExecutionFailedError,
     ExecutionTimeoutError,
 )
@@ -30,6 +31,24 @@ from .status import normalize_status
 from .types import WebhookConfig
 
 logger = get_logger(__name__)
+
+
+async def _safe_pause_callback(callback: Any, name: str, timeout: float = 2.0) -> None:
+    """Run a pause-transition callback, swallowing any exception.
+
+    The on_child_waiting / on_child_running hooks fire HTTP calls to the
+    control plane (for multi-hop pause propagation). A transient blip there
+    must not break the wait loop or leave the local pause_clock stuck.
+    Bounded by ``timeout`` so a hung control plane can't stall the wait
+    loop — propagation is best-effort, and a missed update just falls back
+    to one-hop pause-clock semantics (the prior behavior).
+    """
+    try:
+        await asyncio.wait_for(callback(), timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.debug(f"{name} callback timed out after {timeout}s (swallowed)")
+    except Exception as exc:
+        logger.debug(f"{name} callback raised (swallowed): {exc}")
 
 
 class LazyAsyncLock:
@@ -508,6 +527,8 @@ class AsyncExecutionManager:
         execution_id: str,
         timeout: Optional[float] = None,
         pause_clock: Optional[Any] = None,
+        on_child_waiting: Optional[Any] = None,
+        on_child_running: Optional[Any] = None,
     ) -> Any:
         """
         Wait for execution result with intelligent polling.
@@ -521,6 +542,18 @@ class AsyncExecutionManager:
                 doesn't time out while the awaited child is parked on a
                 human approval — the active-time semantics here match the
                 reasoner watchdog in ``_execute_async_with_callback``.
+            on_child_waiting: Optional async callable fired (best-effort,
+                fire-and-forget) when the awaited child transitions into
+                WAITING. ``Agent.call`` wires this to push the AWAITER's own
+                execution status to WAITING so any further ancestor sees
+                WAITING transitively — without this, the parent's pause-clock
+                only pauses for immediate-child waits, not for grandchild or
+                deeper waits, and the great-grandparent times out at
+                wallclock on multi-hop call chains.
+            on_child_running: Mirror of ``on_child_waiting`` fired when the
+                child exits WAITING, used to push the awaiter back to
+                RUNNING. Exceptions from either callback are swallowed so a
+                transient control-plane blip can't break the wait loop.
 
         Returns:
             Any: Execution result
@@ -528,7 +561,9 @@ class AsyncExecutionManager:
         Raises:
             KeyError: If execution_id is not found
             ExecutionTimeoutError: If execution times out
-            AgentFieldClientError: If execution fails or is cancelled
+            ExecutionFailedError: If the reasoner ran and returned a failed status
+            ExecutionCancelledError: If the execution was cancelled (user intent)
+            AgentFieldClientError: For other transport / submission failures
         """
         # Check cache first
         cached_result = self.result_cache.get_execution_result(execution_id)
@@ -563,6 +598,26 @@ class AsyncExecutionManager:
         # Polling is unconditional, so this works whether or not the SSE
         # event stream is enabled.
         child_pause_active = False
+        # Attach the pause-clock to the execution state so the polling task's
+        # ``is_overdue`` check is also pause-aware. Without this, the polling
+        # loop's wallclock-based overdue check pre-empts the pause-aware loop
+        # below: it marks the execution TIMEOUT at exactly ``timeout`` seconds
+        # of wallclock — even when most of that wallclock was spent in the
+        # child's ``waiting`` state — and we surface that as a spurious
+        # ExecutionTimeoutError. Snapshot the previous value so we restore it
+        # in the finally block (concurrent waiters on the same execution_id
+        # are unusual but supported by the manager API).
+        previous_pause_clock = None
+        attached_pause_clock = False
+        if pause_clock is not None:
+            async with self._execution_lock:
+                execution = self._executions.get(execution_id)
+                if execution is not None:
+                    previous_pause_clock = getattr(
+                        execution, "_pause_clock", None
+                    )
+                    execution._pause_clock = pause_clock
+                    attached_pause_clock = True
         try:
             # Wait for completion
             while _active_elapsed() < wait_timeout:
@@ -595,7 +650,11 @@ class AsyncExecutionManager:
                                 f"Execution failed: {execution.error_message}"
                             )
                         elif execution.status == ExecutionStatus.CANCELLED:
-                            raise AgentFieldClientError(
+                            # Surface as ExecutionCancelledError (NOT a subclass
+                            # of AgentFieldClientError) so Agent.call's
+                            # sync-fallback path skips it: cancellation is
+                            # explicit user intent, never retry-eligible.
+                            raise ExecutionCancelledError(
                                 f"Execution was cancelled: {execution._cancellation_reason}"
                             )
                         elif execution.status == ExecutionStatus.TIMEOUT:
@@ -609,13 +668,49 @@ class AsyncExecutionManager:
                 # whenever ``Agent.call`` is awaited, regardless of whether
                 # ``enable_event_stream`` is on. Done outside the lock so the
                 # ``time.time()`` reads in PauseClock don't pile up under it.
+                #
+                # The ``on_child_waiting`` / ``on_child_running`` callbacks
+                # fire in lockstep — ``Agent.call`` uses them to push the
+                # AWAITER's own status to the control plane so multi-hop
+                # propagation works (one-hop pause-clock pause isn't enough
+                # when the awaiter has its own parent watching).
+                #
+                # We ``await`` the callback rather than ``create_task`` so
+                # the WAITING and RUNNING notifications can't race past each
+                # other and leave the awaiter stuck in WAITING after the
+                # child has already resumed. ``_safe_pause_callback`` enforces
+                # a short timeout and swallows exceptions, so a slow / dead
+                # control plane can't stall the wait loop indefinitely.
                 if pause_clock is not None:
                     if is_waiting and not child_pause_active:
                         pause_clock.start_pause()
                         child_pause_active = True
+                        # INFO-level — this is the moment cascade either works
+                        # or doesn't. If we never see this log for a parent
+                        # awaiting a paused child, the polling task isn't
+                        # marking the local ExecutionState as WAITING and the
+                        # rest of the cascade can't fire.
+                        logger.info(
+                            f"pause_cascade: start_pause child={execution_id[:8]}... "
+                            f"pause_clock_id={id(pause_clock)} "
+                            f"total_paused_so_far={pause_clock.total_paused():.2f}s"
+                        )
+                        if on_child_waiting is not None:
+                            await _safe_pause_callback(
+                                on_child_waiting, "on_child_waiting"
+                            )
                     elif (not is_waiting) and child_pause_active:
                         pause_clock.end_pause()
                         child_pause_active = False
+                        logger.info(
+                            f"pause_cascade: end_pause child={execution_id[:8]}... "
+                            f"pause_clock_id={id(pause_clock)} "
+                            f"total_paused_so_far={pause_clock.total_paused():.2f}s"
+                        )
+                        if on_child_running is not None:
+                            await _safe_pause_callback(
+                                on_child_running, "on_child_running"
+                            )
 
                 # Wait before next check
                 await asyncio.sleep(0.1)
@@ -639,6 +734,13 @@ class AsyncExecutionManager:
                     pause_clock.end_pause()
                 except Exception:
                     pass
+            # Restore the previous ``_pause_clock`` so future polling passes
+            # don't keep subtracting paused time from a stale parent clock.
+            if attached_pause_clock:
+                async with self._execution_lock:
+                    execution = self._executions.get(execution_id)
+                    if execution is not None:
+                        execution._pause_clock = previous_pause_clock
 
     async def cancel_execution(
         self, execution_id: str, reason: Optional[str] = None
@@ -1241,6 +1343,19 @@ class AsyncExecutionManager:
             logger.debug(
                 f"Execution {execution.execution_id[:8]}... status: {old_repr} -> {new_repr}"
             )
+            # INFO-level for the specific WAITING / RUNNING transitions a
+            # cascading parent cares about — debug-only logs were silent in
+            # the failing production run so we couldn't tell whether the
+            # awaited child was ever observed entering WAITING. Other status
+            # transitions (queued/running/succeeded/failed) stay at debug to
+            # avoid log spam from healthy workflows.
+            if new_status in (ExecutionStatus.WAITING, ExecutionStatus.RUNNING) and (
+                old_status != new_status
+            ):
+                logger.info(
+                    f"pause_cascade: poll_observed execution_id={execution.execution_id} "
+                    f"status_transition={old_repr}->{new_repr}"
+                )
 
     def _release_capacity_for_execution(self, execution: ExecutionState) -> None:
         if getattr(execution, "_capacity_released", False):

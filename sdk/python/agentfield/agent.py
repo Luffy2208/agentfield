@@ -2340,6 +2340,10 @@ class Agent(FastAPI):
 
         pause_clock = PauseClock()
         self._pause_clocks[execution_id] = pause_clock
+        log_info(
+            f"pause_cascade: registered pause_clock id={id(pause_clock)} "
+            f"for execution_id={execution_id} reasoner={reasoner_name}"
+        )
 
         start_time = time.time()
         reasoner_task = asyncio.create_task(reasoner_coro())
@@ -2356,6 +2360,21 @@ class Agent(FastAPI):
                     return
                 active_elapsed = (time.time() - start_time) - pause_clock.total_paused()
                 if active_elapsed > reasoner_timeout:
+                    # Capture pause_clock state at the moment of timeout so
+                    # we can tell "watchdog fired with non-zero pause time
+                    # (legitimate long-running work)" apart from "watchdog
+                    # fired with zero pause time (cascade never ran even
+                    # though a descendant was clearly paused)" — the latter
+                    # is the production bug we're hunting.
+                    log_error(
+                        f"pause_cascade: WATCHDOG_FIRING execution_id={execution_id} "
+                        f"reasoner={reasoner_name} "
+                        f"wall_elapsed={time.time() - start_time:.1f}s "
+                        f"total_paused={pause_clock.total_paused():.1f}s "
+                        f"active_elapsed={active_elapsed:.1f}s "
+                        f"budget={reasoner_timeout:.1f}s "
+                        f"pause_clock_id={id(pause_clock)}"
+                    )
                     pause_clock.timed_out = True
                     reasoner_task.cancel()
                     return
@@ -3917,6 +3936,22 @@ class Agent(FastAPI):
                             if parent_execution_id
                             else None
                         )
+                        # INFO-level so this fires in production (dev_mode-gated
+                        # logs were silent during the run that motivated this
+                        # diagnostic). The three values together pinpoint the
+                        # cascade-disabled case: a missing parent_execution_id
+                        # (no current_context) vs. a missing _pause_clocks entry
+                        # (reasoner not invoked via _execute_async_with_callback)
+                        # are different failure modes that need different fixes.
+                        log_info(
+                            f"pause_cascade: target={target} "
+                            f"parent_execution_id={parent_execution_id} "
+                            f"parent_pause_clock_id="
+                            f"{id(parent_pause_clock) if parent_pause_clock else 'None'} "
+                            f"pause_clocks_keys="
+                            f"{list(_all_pause_clocks.keys())[:5]}"
+                            f"{'...' if len(_all_pause_clocks) > 5 else ''}"
+                        )
 
                         # Only pass the pause_clock kwarg when we actually have
                         # one — keeps the call shape backward-compatible with
@@ -3927,6 +3962,54 @@ class Agent(FastAPI):
                         }
                         if parent_pause_clock is not None:
                             _wait_kwargs["pause_clock"] = parent_pause_clock
+
+                            # Multi-hop pause propagation: when our awaited
+                            # child enters WAITING, push OUR OWN execution
+                            # status to WAITING so anyone awaiting us sees
+                            # WAITING too (and transitively up the chain).
+                            # Fire-and-forget; the wait loop swallows
+                            # exceptions so a transient control-plane blip
+                            # can't break the call graph. See run
+                            # run_1778429268006_76e417b7 — implement_from_issue
+                            # timed out at 7200s wallclock because two-or-more
+                            # hops up from a paused descendant, no clock pause
+                            # ever fired without this.
+                            _self_exec_id = parent_execution_id
+                            _client = self.client
+                            if _self_exec_id and _client is not None:
+                                _waiting_reason = f"awaiting child {execution_id}"
+
+                                async def _push_self_waiting() -> None:
+                                    try:
+                                        await _client.notify_awaiter_status(
+                                            execution_id=_self_exec_id,
+                                            status="waiting",
+                                            reason=_waiting_reason,
+                                        )
+                                    except Exception as exc:
+                                        if self.dev_mode:
+                                            log_debug(
+                                                f"notify_awaiter_status(waiting) "
+                                                f"failed (swallowed): {exc}"
+                                            )
+
+                                async def _push_self_running() -> None:
+                                    try:
+                                        await _client.notify_awaiter_status(
+                                            execution_id=_self_exec_id,
+                                            status="running",
+                                            reason=_waiting_reason,
+                                        )
+                                    except Exception as exc:
+                                        if self.dev_mode:
+                                            log_debug(
+                                                f"notify_awaiter_status(running) "
+                                                f"failed (swallowed): {exc}"
+                                            )
+
+                                _wait_kwargs["on_child_waiting"] = _push_self_waiting
+                                _wait_kwargs["on_child_running"] = _push_self_running
+
                         result = await self.client.wait_for_execution_result(
                             **_wait_kwargs
                         )
@@ -3954,29 +4037,34 @@ class Agent(FastAPI):
                             raise async_error
 
                         # Never fall back when the failure happened AFTER the
-                        # reasoner already ran. ExecutionFailedError means
-                        # the call reached the reasoner, the work executed,
-                        # and the reasoner returned an error — retrying
-                        # via sync would burn the same budget for the same
-                        # outcome. ExecutionTimeoutError means the work has
-                        # already used (or exceeded) its timeout budget on
-                        # the agent side; firing the same call again wastes
-                        # another full budget. Both classes surface as
-                        # subclasses of AgentFieldError so a local import
-                        # is safe even with the legacy AgentFieldClientError
-                        # catch path some callers depend on.
+                        # reasoner already ran, OR when the user explicitly
+                        # cancelled. ExecutionFailedError means the call
+                        # reached the reasoner, the work executed, and the
+                        # reasoner returned an error — retrying via sync
+                        # would burn the same budget for the same outcome.
+                        # ExecutionTimeoutError means the work has already
+                        # used (or exceeded) its timeout budget on the agent
+                        # side; firing the same call again wastes another
+                        # full budget. ExecutionCancelledError means the user
+                        # told us to stop — silently re-issuing the call via
+                        # sync fallback would defeat the cancellation.
                         from agentfield.exceptions import (
+                            ExecutionCancelledError,
                             ExecutionFailedError,
                             ExecutionTimeoutError,
                         )
                         if isinstance(
                             async_error,
-                            (ExecutionFailedError, ExecutionTimeoutError),
+                            (
+                                ExecutionFailedError,
+                                ExecutionTimeoutError,
+                                ExecutionCancelledError,
+                            ),
                         ):
                             if self.dev_mode:
                                 log_debug(
                                     f"Skipping sync fallback for {type(async_error).__name__}: "
-                                    f"reasoner already ran; retry would re-burn the budget"
+                                    f"reasoner already ran or was cancelled by user"
                                 )
                             raise async_error
 
