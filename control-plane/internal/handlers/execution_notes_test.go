@@ -3,28 +3,57 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Agent-Field/agentfield/control-plane/internal/server/middleware"
 	"github.com/Agent-Field/agentfield/control-plane/pkg/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
+type executionNoteDIDAuthStorage struct {
+	*testExecutionStorage
+	didDocuments map[string]*types.DIDDocumentRecord
+	agentDIDs    []*types.AgentDIDInfo
+	didLookupErr error
+	listErr      error
+}
+
+func (s *executionNoteDIDAuthStorage) GetDIDDocument(ctx context.Context, did string) (*types.DIDDocumentRecord, error) {
+	if s.didLookupErr != nil {
+		return nil, s.didLookupErr
+	}
+	if s.didDocuments == nil {
+		return nil, nil
+	}
+	return s.didDocuments[did], nil
+}
+
+func (s *executionNoteDIDAuthStorage) ListAgentDIDs(ctx context.Context) ([]*types.AgentDIDInfo, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.agentDIDs, nil
+}
+
 func TestAddExecutionNoteHandler_AppendsNoteAndPublishesEvent(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	executionID := "exec-1"
 	runID := "wf-1" // run_id is the workflow ID equivalent
+	agentID := "agent-1"
 
 	storage := newTestExecutionStorage(nil)
 	exec := &types.Execution{
 		ExecutionID: executionID,
 		RunID:       runID,
+		AgentNodeID: agentID,
 		Notes:       []types.ExecutionNote{},
 		UpdatedAt:   time.Now(),
 	}
@@ -43,6 +72,7 @@ func TestAddExecutionNoteHandler_AppendsNoteAndPublishesEvent(t *testing.T) {
 	reqBody := `{"message":"This is a note","tags":["debug"]}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/executions/note", strings.NewReader(reqBody))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Agent-Node-ID", agentID)
 
 	resp := httptest.NewRecorder()
 	router.ServeHTTP(resp, req)
@@ -70,6 +100,330 @@ func TestAddExecutionNoteHandler_AppendsNoteAndPublishesEvent(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("expected workflow note event")
 	}
+}
+
+func TestAddExecutionNoteHandler_RejectsNonOwnerAPIKeyCaller(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	executionID := "exec-owned-by-b"
+	storage := newTestExecutionStorage(nil)
+	require.NoError(t, storage.CreateExecutionRecord(context.Background(), &types.Execution{
+		ExecutionID: executionID,
+		RunID:       "run-1",
+		AgentNodeID: "agent-b",
+		Notes:       []types.ExecutionNote{},
+		UpdatedAt:   time.Now(),
+	}))
+
+	router := gin.New()
+	router.POST("/api/v1/executions/note", AddExecutionNoteHandler(storage))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/executions/note", strings.NewReader(`{"message":"poisoned note"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Agent-Node-ID", "agent-a")
+	req.Header.Set("X-Execution-ID", executionID)
+
+	resp := httptest.NewRecorder()
+	router.ServeHTTP(resp, req)
+
+	require.Equal(t, http.StatusForbidden, resp.Code)
+	require.Contains(t, resp.Body.String(), "this execution does not belong to the requesting agent")
+
+	updated, err := storage.GetExecutionRecord(context.Background(), executionID)
+	require.NoError(t, err)
+	require.Empty(t, updated.Notes)
+}
+
+func TestAddExecutionNoteHandler_RejectsMissingOwnerOrCaller(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	tests := []struct {
+		name       string
+		ownerID    string
+		callerID   string
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name:       "execution owner missing",
+			ownerID:    "",
+			callerID:   "agent-a",
+			wantStatus: http.StatusForbidden,
+			wantBody:   "execution owner is required to add notes",
+		},
+		{
+			name:       "caller identity missing",
+			ownerID:    "agent-a",
+			callerID:   "",
+			wantStatus: http.StatusForbidden,
+			wantBody:   "caller agent identity is required to add notes to this execution",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executionID := "exec-" + strings.ReplaceAll(tt.name, " ", "-")
+			storage := newTestExecutionStorage(nil)
+			require.NoError(t, storage.CreateExecutionRecord(context.Background(), &types.Execution{
+				ExecutionID: executionID,
+				RunID:       "run-1",
+				AgentNodeID: tt.ownerID,
+				Notes:       []types.ExecutionNote{},
+				UpdatedAt:   time.Now(),
+			}))
+
+			router := gin.New()
+			router.POST("/api/v1/executions/note", AddExecutionNoteHandler(storage))
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/executions/note", strings.NewReader(`{"message":"should be rejected"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Execution-ID", executionID)
+			if tt.callerID != "" {
+				req.Header.Set("X-Agent-Node-ID", tt.callerID)
+			}
+
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			require.Equal(t, tt.wantStatus, resp.Code)
+			require.Contains(t, resp.Body.String(), tt.wantBody)
+
+			updated, err := storage.GetExecutionRecord(context.Background(), executionID)
+			require.NoError(t, err)
+			require.Empty(t, updated.Notes)
+		})
+	}
+}
+
+func TestAddExecutionNoteHandler_DIDCallerOwnership(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	const callerDID = "did:web:example.com:agents:agent-a"
+
+	tests := []struct {
+		name           string
+		executionOwner string
+		wantStatus     int
+		wantNotes      int
+	}{
+		{
+			name:           "owner write succeeds",
+			executionOwner: "agent-a",
+			wantStatus:     http.StatusOK,
+			wantNotes:      1,
+		},
+		{
+			name:           "non owner write forbidden",
+			executionOwner: "agent-b",
+			wantStatus:     http.StatusForbidden,
+			wantNotes:      0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executionID := "exec-did-" + strings.ReplaceAll(tt.name, " ", "-")
+			storage := &executionNoteDIDAuthStorage{
+				testExecutionStorage: newTestExecutionStorage(nil),
+				didDocuments: map[string]*types.DIDDocumentRecord{
+					callerDID: {
+						DID:     callerDID,
+						AgentID: "agent-a",
+					},
+				},
+			}
+			require.NoError(t, storage.CreateExecutionRecord(context.Background(), &types.Execution{
+				ExecutionID: executionID,
+				RunID:       "run-did",
+				AgentNodeID: tt.executionOwner,
+				Notes:       []types.ExecutionNote{},
+				UpdatedAt:   time.Now(),
+			}))
+
+			router := gin.New()
+			router.POST("/api/v1/executions/note", func(c *gin.Context) {
+				c.Set(string(middleware.VerifiedCallerDIDKey), callerDID)
+				AddExecutionNoteHandler(storage)(c)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/executions/note", strings.NewReader(`{"message":"did note"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Execution-ID", executionID)
+
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			require.Equal(t, tt.wantStatus, resp.Code)
+
+			updated, err := storage.GetExecutionRecord(context.Background(), executionID)
+			require.NoError(t, err)
+			require.Len(t, updated.Notes, tt.wantNotes)
+			if tt.wantStatus == http.StatusForbidden {
+				require.Contains(t, resp.Body.String(), "this execution does not belong to the requesting agent")
+			}
+		})
+	}
+}
+
+func TestAddExecutionNoteHandler_DIDResolutionFailure(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	const callerDID = "did:web:example.com:agents:agent-a"
+
+	tests := []struct {
+		name       string
+		storage    *executionNoteDIDAuthStorage
+		wantStatus int
+		wantBody   string
+	}{
+		{
+			name: "DID resolver error returns server error",
+			storage: &executionNoteDIDAuthStorage{
+				testExecutionStorage: newTestExecutionStorage(nil),
+				listErr:              errors.New("DID registry unavailable"),
+			},
+			wantStatus: http.StatusInternalServerError,
+			wantBody:   "Failed to resolve caller identity",
+		},
+		{
+			name: "unresolved DID fails closed",
+			storage: &executionNoteDIDAuthStorage{
+				testExecutionStorage: newTestExecutionStorage(nil),
+				agentDIDs: []*types.AgentDIDInfo{
+					{DID: "did:web:example.com:agents:other", AgentNodeID: "agent-other"},
+				},
+			},
+			wantStatus: http.StatusForbidden,
+			wantBody:   "caller agent identity is required to add notes to this execution",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			executionID := "exec-" + strings.ReplaceAll(tt.name, " ", "-")
+			require.NoError(t, tt.storage.CreateExecutionRecord(context.Background(), &types.Execution{
+				ExecutionID: executionID,
+				RunID:       "run-did",
+				AgentNodeID: "agent-a",
+				Notes:       []types.ExecutionNote{},
+				UpdatedAt:   time.Now(),
+			}))
+
+			router := gin.New()
+			router.POST("/api/v1/executions/note", func(c *gin.Context) {
+				c.Set(string(middleware.VerifiedCallerDIDKey), callerDID)
+				AddExecutionNoteHandler(tt.storage)(c)
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/executions/note", strings.NewReader(`{"message":"did note"}`))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Execution-ID", executionID)
+
+			resp := httptest.NewRecorder()
+			router.ServeHTTP(resp, req)
+
+			require.Equal(t, tt.wantStatus, resp.Code)
+			require.Contains(t, resp.Body.String(), tt.wantBody)
+
+			updated, err := tt.storage.GetExecutionRecord(context.Background(), executionID)
+			require.NoError(t, err)
+			require.Empty(t, updated.Notes)
+		})
+	}
+}
+
+func TestExecutionNoteCallerAgentIDResolution(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	newContext := func() *gin.Context {
+		resp := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(resp)
+		c.Request = httptest.NewRequest(http.MethodPost, "/api/v1/executions/note", nil)
+		return c
+	}
+
+	t.Run("authorization error string", func(t *testing.T) {
+		err := &executionNoteAuthorizationError{message: "denied"}
+		require.Equal(t, "denied", err.Error())
+	})
+
+	t.Run("caller context takes precedence", func(t *testing.T) {
+		c := newContext()
+		c.Set(string(middleware.CallerAgentIDKey), " agent-from-context ")
+
+		got, err := executionNoteCallerAgentID(context.Background(), c, newTestExecutionStorage(nil))
+
+		require.NoError(t, err)
+		require.Equal(t, "agent-from-context", got)
+	})
+
+	t.Run("caller header fallback", func(t *testing.T) {
+		c := newContext()
+		c.Request.Header.Set("X-Caller-Agent-ID", " agent-from-caller ")
+		c.Request.Header.Set("X-Agent-Node-ID", "agent-from-node")
+
+		got, err := executionNoteCallerAgentID(context.Background(), c, newTestExecutionStorage(nil))
+
+		require.NoError(t, err)
+		require.Equal(t, "agent-from-caller", got)
+	})
+
+	t.Run("agent node header fallback", func(t *testing.T) {
+		c := newContext()
+		c.Request.Header.Set("X-Agent-Node-ID", " agent-from-node ")
+
+		got, err := executionNoteCallerAgentID(context.Background(), c, newTestExecutionStorage(nil))
+
+		require.NoError(t, err)
+		require.Equal(t, "agent-from-node", got)
+	})
+
+	t.Run("DID list fallback skips nil entries", func(t *testing.T) {
+		const callerDID = "did:web:example.com:agents:agent-a"
+		c := newContext()
+		c.Set(string(middleware.VerifiedCallerDIDKey), callerDID)
+		storage := &executionNoteDIDAuthStorage{
+			testExecutionStorage: newTestExecutionStorage(nil),
+			agentDIDs: []*types.AgentDIDInfo{
+				nil,
+				{DID: "did:web:example.com:agents:other", AgentNodeID: "agent-other"},
+				{DID: callerDID, AgentNodeID: " agent-a "},
+			},
+		}
+
+		got, err := executionNoteCallerAgentID(context.Background(), c, storage)
+
+		require.NoError(t, err)
+		require.Equal(t, "agent-a", got)
+	})
+
+	t.Run("DID lookup error falls back to list", func(t *testing.T) {
+		const callerDID = "did:web:example.com:agents:agent-a"
+		c := newContext()
+		c.Set(string(middleware.VerifiedCallerDIDKey), callerDID)
+		storage := &executionNoteDIDAuthStorage{
+			testExecutionStorage: newTestExecutionStorage(nil),
+			didLookupErr:         errors.New("lookup failed"),
+			agentDIDs: []*types.AgentDIDInfo{
+				{DID: callerDID, AgentNodeID: "agent-a"},
+			},
+		}
+
+		got, err := executionNoteCallerAgentID(context.Background(), c, storage)
+
+		require.NoError(t, err)
+		require.Equal(t, "agent-a", got)
+	})
+
+	t.Run("DID with no resolver returns empty caller", func(t *testing.T) {
+		c := newContext()
+		c.Set(string(middleware.VerifiedCallerDIDKey), "did:web:example.com:agents:agent-a")
+
+		got, err := executionNoteCallerAgentID(context.Background(), c, newTestExecutionStorage(nil))
+
+		require.NoError(t, err)
+		require.Empty(t, got)
+	})
 }
 
 func TestGetExecutionNotesHandler_ReturnsFilteredNotes(t *testing.T) {

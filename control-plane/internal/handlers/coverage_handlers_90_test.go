@@ -240,6 +240,7 @@ func TestExecutionNotesCoverageAdditional(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/notes", strings.NewReader(`{"message":" kept "}`))
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("X-Execution-ID", "exec-2")
+		req.Header.Set("X-Agent-Node-ID", "node-2")
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 

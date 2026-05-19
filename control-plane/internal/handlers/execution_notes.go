@@ -2,12 +2,14 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/Agent-Field/agentfield/control-plane/internal/events"
+	"github.com/Agent-Field/agentfield/control-plane/internal/server/middleware"
 	"github.com/Agent-Field/agentfield/control-plane/pkg/types"
 
 	"github.com/gin-gonic/gin"
@@ -18,6 +20,22 @@ type ExecutionNoteStorage interface {
 	GetExecutionRecord(ctx context.Context, executionID string) (*types.Execution, error)
 	UpdateExecutionRecord(ctx context.Context, executionID string, updateFunc func(*types.Execution) (*types.Execution, error)) (*types.Execution, error)
 	GetExecutionEventBus() *events.ExecutionEventBus
+}
+
+type executionNoteDIDDocumentLookup interface {
+	GetDIDDocument(ctx context.Context, did string) (*types.DIDDocumentRecord, error)
+}
+
+type executionNoteAgentDIDLister interface {
+	ListAgentDIDs(ctx context.Context) ([]*types.AgentDIDInfo, error)
+}
+
+type executionNoteAuthorizationError struct {
+	message string
+}
+
+func (e *executionNoteAuthorizationError) Error() string {
+	return e.message
 }
 
 // AddNoteRequest represents the request body for adding a note to an execution
@@ -76,11 +94,20 @@ func AddExecutionNoteHandler(storageProvider ExecutionNoteStorage) gin.HandlerFu
 		}
 
 		// Update the execution with the new note
-		ctx := context.Background()
+		ctx := c.Request.Context()
+		callerAgentID, err := executionNoteCallerAgentID(ctx, c, storageProvider)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to resolve caller identity: %v", err)})
+			return
+		}
+
 		var runID string
 		updated, err := storageProvider.UpdateExecutionRecord(ctx, executionID, func(execution *types.Execution) (*types.Execution, error) {
 			if execution == nil {
 				return nil, fmt.Errorf("execution with ID %s not found", executionID)
+			}
+			if err := ensureExecutionNoteOwnership(callerAgentID, execution); err != nil {
+				return nil, err
 			}
 
 			// Store run ID for SSE event (run_id is the workflow ID equivalent)
@@ -99,6 +126,14 @@ func AddExecutionNoteHandler(storageProvider ExecutionNoteStorage) gin.HandlerFu
 		})
 
 		if err != nil {
+			var authzErr *executionNoteAuthorizationError
+			if errors.As(err, &authzErr) {
+				c.JSON(http.StatusForbidden, gin.H{
+					"error":   "execution_ownership_mismatch",
+					"message": authzErr.message,
+				})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to add note: %v", err)})
 			return
 		}
@@ -128,6 +163,71 @@ func AddExecutionNoteHandler(storageProvider ExecutionNoteStorage) gin.HandlerFu
 			Message: "Note added successfully",
 		})
 	}
+}
+
+func ensureExecutionNoteOwnership(callerAgentID string, execution *types.Execution) error {
+	ownerAgentID := strings.TrimSpace(execution.AgentNodeID)
+	if ownerAgentID == "" {
+		return &executionNoteAuthorizationError{message: "execution owner is required to add notes"}
+	}
+
+	if callerAgentID == "" {
+		return &executionNoteAuthorizationError{message: "caller agent identity is required to add notes to this execution"}
+	}
+	if callerAgentID != ownerAgentID {
+		return &executionNoteAuthorizationError{message: "this execution does not belong to the requesting agent"}
+	}
+
+	return nil
+}
+
+func executionNoteCallerAgentID(ctx context.Context, c *gin.Context, storageProvider ExecutionNoteStorage) (string, error) {
+	if callerDID := strings.TrimSpace(middleware.GetVerifiedCallerDID(c)); callerDID != "" {
+		return resolveExecutionNoteAgentIDByDID(ctx, storageProvider, callerDID)
+	}
+
+	if callerID, exists := c.Get(string(middleware.CallerAgentIDKey)); exists {
+		if id, ok := callerID.(string); ok {
+			if id = strings.TrimSpace(id); id != "" {
+				return id, nil
+			}
+		}
+	}
+	if agentID := strings.TrimSpace(c.GetHeader("X-Caller-Agent-ID")); agentID != "" {
+		return agentID, nil
+	}
+	if agentID := strings.TrimSpace(c.GetHeader("X-Agent-Node-ID")); agentID != "" {
+		return agentID, nil
+	}
+
+	return "", nil
+}
+
+func resolveExecutionNoteAgentIDByDID(ctx context.Context, storageProvider ExecutionNoteStorage, callerDID string) (string, error) {
+	if lookup, ok := storageProvider.(executionNoteDIDDocumentLookup); ok {
+		if record, err := lookup.GetDIDDocument(ctx, callerDID); err == nil && record != nil {
+			return strings.TrimSpace(record.AgentID), nil
+		}
+	}
+
+	lister, ok := storageProvider.(executionNoteAgentDIDLister)
+	if !ok {
+		return "", nil
+	}
+	agentDIDs, err := lister.ListAgentDIDs(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve caller DID: %w", err)
+	}
+	for _, info := range agentDIDs {
+		if info == nil {
+			continue
+		}
+		if strings.TrimSpace(info.DID) == callerDID {
+			return strings.TrimSpace(info.AgentNodeID), nil
+		}
+	}
+
+	return "", nil
 }
 
 // GetExecutionNotesHandler handles GET /api/v1/executions/:execution_id/notes
